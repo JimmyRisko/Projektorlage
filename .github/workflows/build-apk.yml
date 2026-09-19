@@ -42,6 +42,9 @@ jobs:
       - name: Apply v0.7 experimental system mirror
         run: python patch/apply_v07.py src
 
+      - name: Apply v0.8 MediaProjection fix
+        run: python patch/apply_v08.py src
+
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
@@ -70,13 +73,13 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v0.7.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v0.8.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v0.7-debug-apk
-          path: Projektorlage-v0.7.apk
+          name: Projektorlage-v0.8-debug-apk
+          path: Projektorlage-v0.8.apk
           if-no-files-found: error
 
       - name: Publish test release
@@ -84,5 +87,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v0.7-test >/dev/null 2>&1 || gh release create v0.7-test --title "Projektorläge v0.7 test" --notes "Experimentellt helskärmsspegeltest via Androids vanliga skärmdelnings-API. Ingen DRM kringgås; skyddad video kan därför bli svart."
-          gh release upload v0.7-test Projektorlage-v0.7.apk --clobber
+          gh release view v0.8-test >/dev/null 2>&1 || gh release create v0.8-test --title "Projektorläge v0.8 test" --notes "Fixar MediaProjection-krasch på Android 14+ genom att resize:a befintlig VirtualDisplay i stället för att skapa en ny."
+          gh release upload v0.8-test Projektorlage-v0.8.apk --clobber
