@@ -65,6 +65,8 @@ jobs:
         run: python patch/apply_v20.py src
       - name: Apply v2.1 OpenGL mirror pipeline
         run: python patch/apply_v21.py src
+      - name: Apply v2.2 reliable brightness
+        run: python patch/apply_v22.py src
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -94,13 +96,13 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.1.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.2.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v2.1-debug-apk
-          path: Projektorlage-v2.1.apk
+          name: Projektorlage-v2.2-debug-apk
+          path: Projektorlage-v2.2.apk
           if-no-files-found: error
 
       - name: Publish test release
@@ -108,5 +110,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v2.1-test >/dev/null 2>&1 || gh release create v2.1-test --title "Projektorläge v2.1 test" --notes "Ny OpenGL-bildmotor: MediaProjection går direkt till en SurfaceTexture och renderas i OpenGL. Horisontell spegling görs i texturkoordinaterna på GPU:n, så den är inte längre beroende av TextureView scaleX. Projektorprofilerna NATURLIG/PROJEKTOR/MAX körs i samma shader utan grå overlay."
-          gh release upload v2.1-test Projektorlage-v2.1.apk --clobber
+          gh release view v2.2-test >/dev/null 2>&1 || gh release create v2.2-test --title "Projektorläge v2.2 test" --notes "Tillförlitlig maxljusstyrka: appen läser enhetens verkliga maxvärde i stället för att anta 255, låser manuell ljusstyrka och återställer max flera gånger medan Netflix startar. OpenGL-spegelmotorn och projektorprofilerna ligger kvar."
+          gh release upload v2.2-test Projektorlage-v2.2.apk --clobber
