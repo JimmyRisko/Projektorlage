@@ -365,7 +365,7 @@ new_roles = '''    private void showProjectorPanel() {
         if (ipInput != null) ipInput.setText(ip);
         if (pinInput != null) pinInput.setText(pin);
 
-        if (!ip.isEmpty() && pin.matches("\\d{6}")) {
+        if (!ip.isEmpty() && pin.matches("\\\\d{6}")) {
             remoteStatus.setText("Ansluter automatiskt…");
             uiHandler.postDelayed(() -> sendRemote("PING"), 350);
         } else {
