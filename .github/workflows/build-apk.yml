@@ -51,6 +51,8 @@ jobs:
         run: python patch/apply_v13.py src
       - name: Apply v1.4 one-tap projector
         run: python patch/apply_v14.py src
+      - name: Apply v1.5 simplified consumer UX
+        run: python patch/apply_v15.py src
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -80,13 +82,13 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v1.4.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v1.5.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v1.4-debug-apk
-          path: Projektorlage-v1.4.apk
+          name: Projektorlage-v1.5-debug-apk
+          path: Projektorlage-v1.5.apk
           if-no-files-found: error
 
       - name: Publish test release
@@ -94,5 +96,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v1.4-test >/dev/null 2>&1 || gh release create v1.4-test --title "Projektorläge v1.4 test" --notes "One-tap Projektor: ett tryck väljer rätt reverse-landskap, maxar ljuset, sätter +12% projektorboost, startar fjärrservern och öppnar Netflix automatiskt. Behörigheter frågas bara av Android när de behövs. Innehåller även LAN-reparation och full återställning."
-          gh release upload v1.4-test Projektorlage-v1.4.apk --clobber
+          gh release view v1.5-test >/dev/null 2>&1 || gh release create v1.5-test --title "Projektorläge v1.5 test" --notes "Förenklat konsumentläge: rollen sparas, projektormobilens huvudvy har bara STARTA/STOPPA och fjärren visar bara vanliga uppspelningskontroller. Tekniska funktioner, IP/PIN, rotation, boost och felsökning ligger under Avancerat. Senast parkopplade fjärr ansluter automatiskt."
+          gh release upload v1.5-test Projektorlage-v1.5.apk --clobber
