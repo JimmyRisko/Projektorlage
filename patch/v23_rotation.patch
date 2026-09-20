@@ -1,0 +1,261 @@
+--- a/app/src/main/java/se/projektorlage/app/RotationService.java
++++ b/app/src/main/java/se/projektorlage/app/RotationService.java
+@@ -107,18 +107,23 @@
+             saveRotationMode(false);
+         }
+ 
+-        applySavedSystemRotation();
++        boolean rotationOk = applySavedSystemRotation();
+ 
+         if (Settings.canDrawOverlays(this)) {
+             addOrientationOverlay();
+             applySavedOrientation();
+-            forceProjectorBrightness();
++            boolean brightnessOk = forceProjectorBrightness();
+             startBrightnessKick();
+-            int savedBoost = getSharedPreferences("state", MODE_PRIVATE).getInt("light_boost_percent", 0);
+-            setLightBoost(savedBoost);
++            setLightBoost(0);
+             startRemoteServer();
+             setEnabled(true);
+ 
++            getSharedPreferences("state", MODE_PRIVATE).edit()
++                    .putString("startup_state", rotationOk && brightnessOk
++                            ? "BASE_READY"
++                            : "ERR_BASE_SETUP")
++                    .apply();
++
+             android.content.SharedPreferences autoPrefs = getSharedPreferences("state", MODE_PRIVATE);
+             if (ACTION_ENABLE.equals(action) && autoPrefs.getBoolean("auto_launch_netflix", false)) {
+                 autoPrefs.edit().putBoolean("auto_launch_netflix", false).apply();
+@@ -204,17 +209,34 @@
+     }
+ 
+     private boolean applySystemRotation(boolean reverse) {
+-        if (!Settings.System.canWrite(this)) return false;
++        if (!Settings.System.canWrite(this)) {
++            getSharedPreferences("state", MODE_PRIVATE).edit()
++                    .putBoolean("rotation_verified", false)
++                    .apply();
++            return false;
++        }
+         try {
+             captureOriginalRotationSettings();
+-            Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0);
+             int target = reverse ? Surface.ROTATION_270 : Surface.ROTATION_90;
+-            boolean ok = Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, target);
++            Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0);
++            Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, target);
++
++            int autoRotate = Settings.System.getInt(
++                    getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 1);
++            int actual = Settings.System.getInt(
++                    getContentResolver(), Settings.System.USER_ROTATION, Surface.ROTATION_0);
++            boolean verified = autoRotate == 0 && actual == target;
++
+             getSharedPreferences("state", MODE_PRIVATE).edit()
+                     .putInt("forced_surface_rotation", target)
++                    .putInt("rotation_actual", actual)
++                    .putBoolean("rotation_verified", verified)
+                     .apply();
+-            return ok;
++            return verified;
+         } catch (Exception e) {
++            getSharedPreferences("state", MODE_PRIVATE).edit()
++                    .putBoolean("rotation_verified", false)
++                    .apply();
+             return false;
+         }
+     }
+@@ -541,7 +563,7 @@
+             case "BRIGHTNESS_DOWN":
+                 return adjustBrightness(-25);
+             case "BRIGHTNESS_MAX":
+-                return setBrightness(255);
++                return setBrightness(getDeviceBrightnessMaximum());
+             case "BOOST_0":
+                 return setLightBoost(0);
+             case "BOOST_12":
+@@ -596,8 +618,13 @@
+         return 255;
+     }
+ 
+-    private void forceProjectorBrightness() {
+-        if (!Settings.System.canWrite(this)) return;
++    private boolean forceProjectorBrightness() {
++        if (!Settings.System.canWrite(this)) {
++            getSharedPreferences("state", MODE_PRIVATE).edit()
++                    .putBoolean("brightness_verified", false)
++                    .apply();
++            return false;
++        }
+         try {
+             android.content.SharedPreferences prefs = getSharedPreferences("state", MODE_PRIVATE);
+             if (!prefs.getBoolean("brightness_backup_valid", false)) {
+@@ -617,7 +644,6 @@
+             }
+ 
+             int maximum = getDeviceBrightnessMaximum();
+-
+             Settings.System.putInt(
+                     getContentResolver(),
+                     Settings.System.SCREEN_BRIGHTNESS_MODE,
+@@ -627,10 +653,28 @@
+                     Settings.System.SCREEN_BRIGHTNESS,
+                     maximum);
+ 
++            int actualMode = Settings.System.getInt(
++                    getContentResolver(),
++                    Settings.System.SCREEN_BRIGHTNESS_MODE,
++                    Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
++            int actual = Settings.System.getInt(
++                    getContentResolver(),
++                    Settings.System.SCREEN_BRIGHTNESS,
++                    0);
++            boolean verified = actualMode == Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
++                    && actual >= Math.max(1, maximum - 1);
++
+             prefs.edit()
+                     .putInt("projector_brightness_max", maximum)
++                    .putInt("projector_brightness_actual", actual)
++                    .putBoolean("brightness_verified", verified)
+                     .apply();
++            return verified;
+         } catch (Exception ignored) {
++            getSharedPreferences("state", MODE_PRIVATE).edit()
++                    .putBoolean("brightness_verified", false)
++                    .apply();
++            return false;
+         }
+     }
+ 
+@@ -684,7 +728,7 @@
+             Settings.System.putInt(
+                     getContentResolver(),
+                     Settings.System.SCREEN_BRIGHTNESS,
+-                    Math.max(1, Math.min(255, oldBrightness)));
++                    Math.max(1, Math.min(getDeviceBrightnessMaximum(), oldBrightness)));
+             Settings.System.putInt(
+                     getContentResolver(),
+                     Settings.System.SCREEN_BRIGHTNESS_MODE,
+@@ -714,57 +758,15 @@
+     }
+ 
+     private String setLightBoost(int percent) {
+-        int clamped = Math.max(0, Math.min(35, percent));
+         getSharedPreferences("state", MODE_PRIVATE).edit()
+-                .putInt("light_boost_percent", clamped)
++                .putInt("light_boost_percent", 0)
+                 .apply();
+-
+-        new Handler(Looper.getMainLooper()).post(() -> applyLightBoost(clamped));
+-
+-        if (clamped == 0) return "OK|BOOST_0";
+-        if (clamped <= 12) return "OK|BOOST_12";
+-        return "OK|BOOST_25";
++        removeLightBoostOverlay();
++        return "OK|BOOST_REMOVED";
+     }
+ 
+     private void applyLightBoost(int percent) {
+-        if (windowManager == null) {
+-            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+-        }
+-
+         removeLightBoostOverlay();
+-
+-        if (percent <= 0 || !Settings.canDrawOverlays(this)) return;
+-
+-        lightBoostView = new View(this);
+-        lightBoostView.setBackgroundColor(Color.WHITE);
+-
+-        int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+-                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+-                : WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY;
+-
+-        int overlayFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+-                | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+-                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+-                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+-                | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+-                | WindowManager.LayoutParams.FLAG_SECURE;
+-
+-        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+-                WindowManager.LayoutParams.MATCH_PARENT,
+-                WindowManager.LayoutParams.MATCH_PARENT,
+-                type,
+-                overlayFlags,
+-                PixelFormat.TRANSLUCENT);
+-        params.gravity = Gravity.TOP | Gravity.START;
+-        params.alpha = percent / 100f;
+-        params.screenBrightness = 1.0f;
+-        params.setTitle("Projektorläge light boost");
+-
+-        try {
+-            windowManager.addView(lightBoostView, params);
+-        } catch (Exception ignored) {
+-            lightBoostView = null;
+-        }
+     }
+ 
+     private void removeLightBoostOverlay() {
+@@ -780,8 +782,11 @@
+     private String adjustBrightness(int delta) {
+         if (!Settings.System.canWrite(this)) return "ERR|BRIGHTNESS_PERMISSION";
+         try {
+-            int current = Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, 128);
+-            int target = Math.max(1, Math.min(255, current + delta));
++            int maximum = getDeviceBrightnessMaximum();
++            int current = Settings.System.getInt(
++                    getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, maximum / 2);
++            int step = Math.max(1, maximum / 10);
++            int target = delta >= 0 ? current + step : current - step;
+             return setBrightness(target);
+         } catch (Exception e) {
+             return "ERR|BRIGHTNESS";
+@@ -791,9 +796,25 @@
+     private String setBrightness(int value) {
+         if (!Settings.System.canWrite(this)) return "ERR|BRIGHTNESS_PERMISSION";
+         try {
+-            Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+-            Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, Math.max(1, Math.min(255, value)));
+-            return "OK|BRIGHTNESS";
++            stopBrightnessKick();
++            int maximum = getDeviceBrightnessMaximum();
++            int target = Math.max(1, Math.min(maximum, value));
++            Settings.System.putInt(
++                    getContentResolver(),
++                    Settings.System.SCREEN_BRIGHTNESS_MODE,
++                    Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
++            Settings.System.putInt(
++                    getContentResolver(),
++                    Settings.System.SCREEN_BRIGHTNESS,
++                    target);
++            int actual = Settings.System.getInt(
++                    getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, 0);
++            boolean ok = Math.abs(actual - target) <= 1;
++            getSharedPreferences("state", MODE_PRIVATE).edit()
++                    .putInt("projector_brightness_actual", actual)
++                    .putBoolean("brightness_verified", ok)
++                    .apply();
++            return ok ? "OK|BRIGHTNESS" : "ERR|BRIGHTNESS";
+         } catch (Exception e) {
+             return "ERR|BRIGHTNESS";
+         }
+@@ -833,6 +854,16 @@
+     private void shutdownEverything() {
+         // Mark the mode disabled first so watchdogs/network callbacks cannot revive it.
+         setEnabled(false);
++        android.content.SharedPreferences shutdownPrefs = getSharedPreferences("state", MODE_PRIVATE);
++        String previousStartupState = shutdownPrefs.getString("startup_state", "IDLE");
++        android.content.SharedPreferences.Editor shutdownEdit = shutdownPrefs.edit()
++                .putBoolean("rotation_verified", false)
++                .putBoolean("brightness_verified", false)
++                .putBoolean("mirror_ready", false);
++        if (previousStartupState == null || !previousStartupState.startsWith("ERR_")) {
++            shutdownEdit.putString("startup_state", "IDLE").remove("mirror_error");
++        }
++        shutdownEdit.apply();
+ 
+         stopHealthWatchdog();
+         stopBrightnessKick();
