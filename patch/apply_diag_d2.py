@@ -29,25 +29,17 @@ m=m.replace('android:label="Projektorläge Diagnostik"',
 manifest.write_text(m)
 
 s=main.read_text()
-# Add unmistakable build/version text under the main title/introduction.
-needle='''        TextView intro = text(
-                "Starta projektorn med ett tryck. Tekniska inställningar finns bara under Avancerat.",
-                15, muted(), false);
-        intro.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.addView(intro, full(0, dp(18)));'''
-repl='''        TextView intro = text(
-                "Starta projektorn med ett tryck. Tekniska inställningar finns bara under Avancerat.",
-                15, muted(), false);
-        intro.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.addView(intro, full(0, dp(8)));
+# Add an unmistakable D2 label inside the projector panel.
+needle='''        panel.addView(sectionTitle("Projektor"), full(0, dp(8)));'''
+repl='''        panel.addView(sectionTitle("Projektor"), full(0, dp(8)));
 
         TextView diagnosticBuild = text(
                 "DIAGNOSTIK D2 • loggning aktiv",
                 14, Color.rgb(255, 184, 77), true);
         diagnosticBuild.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.addView(diagnosticBuild, full(0, dp(18)));'''
+        panel.addView(diagnosticBuild, full(0, dp(10)));'''
 if needle not in s:
-    raise SystemExit("D2 version label insertion point not found")
+    raise SystemExit("D2 projector label insertion point not found")
 s=s.replace(needle,repl,1)
 
 # Make sure visible export button is present and loud.
