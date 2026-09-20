@@ -77,6 +77,7 @@ jobs:
           patch -p1 < ../patch/v23_mirror.patch
           patch -p1 < ../patch/v23_rotation.patch
           patch -p1 < ../patch/v23_meta.patch
+          patch -p1 < ../patch/v23_hardening.patch
 
       - name: Validate v2.3 critical behavior
         working-directory: src
