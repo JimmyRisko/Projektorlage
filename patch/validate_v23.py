@@ -24,6 +24,7 @@ checks = [
     ('main activity not manifest-locked portrait', 'android:name=".MainActivity"\n            android:exported="true">' in manifest),
     ('projector page stays portrait until START', 'private void showProjectorPanel() {\n        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);' in main),
     ('actual display rotation verification', 'getDefaultDisplay().getRotation()' in svc and 'verifyDisplayRotation(target, 0)' in svc),
+    ('role-specific permission timing', 'setContentView(buildUi());\n\n        String savedRole' in main and 'showProjectorPanel() {\n        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);\n        askNotificationPermissionIfNeeded();' in main and 'showRemotePanel() {\n        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);\n        askNearbyWifiPermissionIfNeeded();' in main),
     ('v2.3 version', "versionName '2.3.0'" in build),
 ]
 failed=[name for name,ok in checks if not ok]
