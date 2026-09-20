@@ -277,10 +277,10 @@ auto_method = '''    private void autoConnectRemote() {
             String pin = pinInput != null ? pinInput.getText().toString().trim() : "";
 
             if (ip.isEmpty()) ip = prefs.getString("ip", "");
-            if (!pin.matches("\\d{6}")) pin = prefs.getString("pin", "");
+            if (!pin.matches("\\\\d{6}")) pin = prefs.getString("pin", "");
 
             // First try the last known projector. This makes normal startup almost instant.
-            if (!ip.isEmpty() && pin.matches("\\d{6}")) {
+            if (!ip.isEmpty() && pin.matches("\\\\d{6}")) {
                 try {
                     String response = RemoteClient.send(ip, 8765, pin, "PING");
                     if (response != null && response.startsWith("OK|")) {
