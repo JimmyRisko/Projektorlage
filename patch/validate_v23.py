@@ -22,7 +22,8 @@ checks = [
     ('legacy white boost disabled', 'return "OK|BOOST_REMOVED"' in svc),
     ('permission activity survives rotation', 'android:configChanges="orientation|screenSize|keyboardHidden"' in manifest),
     ('main activity not manifest-locked portrait', 'android:name=".MainActivity"\n            android:exported="true">' in manifest),
-    ('projector page stays portrait until START', 'private void showProjectorPanel() {\n        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);' in main),\n    ('actual display rotation verification', 'getDefaultDisplay().getRotation()' in svc and 'verifyDisplayRotation(target, 0)' in svc),
+    ('projector page stays portrait until START', 'private void showProjectorPanel() {\n        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);' in main),
+    ('actual display rotation verification', 'getDefaultDisplay().getRotation()' in svc and 'verifyDisplayRotation(target, 0)' in svc),
     ('v2.3 version', "versionName '2.3.0'" in build),
 ]
 failed=[name for name,ok in checks if not ok]
