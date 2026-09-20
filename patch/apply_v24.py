@@ -232,18 +232,7 @@ public class MirrorOverlayService extends Service {
                 // 1) The overlay must be attached and have a real SurfaceControl.
                 // 2) Mark that layer eSkipScreenshot.
                 // 3) Only then start MediaProjection capture.
-                mainHandler.post(() -> {
-                    if (!installSkipScreenshot(overlay)) {
-                        setMirrorError("Samsung/Android blockerade overlay-undantaget");
-                        stopSelf();
-                        return;
-                    }
-                    skipScreenshotInstalled = true;
-                    getSharedPreferences("state", MODE_PRIVATE).edit()
-                            .putBoolean("overlay_excluded", true)
-                            .apply();
-                    startVirtualDisplay(st);
-                });
+                mainHandler.post(() -> attemptInstallSkipScreenshot(st, 0));
             }
 
             @Override
@@ -284,27 +273,56 @@ public class MirrorOverlayService extends Service {
         }
     }
 
+    private void attemptInstallSkipScreenshot(SurfaceTexture st, int attempt) {
+        if (overlay == null || st == null) return;
+
+        if (installSkipScreenshot(overlay)) {
+            skipScreenshotInstalled = true;
+            getSharedPreferences("state", MODE_PRIVATE).edit()
+                    .putBoolean("overlay_excluded", true)
+                    .apply();
+            startVirtualDisplay(st);
+            return;
+        }
+
+        // SurfaceControl/BLAST can lag a few frames behind View attachment on Samsung.
+        // Retry briefly instead of failing on the first frame.
+        if (attempt < 15) {
+            mainHandler.postDelayed(
+                    () -> attemptInstallSkipScreenshot(st, attempt + 1),
+                    attempt < 4 ? 50L : 90L);
+            return;
+        }
+
+        setMirrorError("Samsung/Android blockerade overlay-undantaget");
+        stopSelf();
+    }
+
     /**
      * SurfaceFlinger eSkipScreenshot:
      * the overlay is visible on the physical phone display but omitted from
      * MediaProjection/VirtualDisplay composition. This is the missing piece
      * that prevents the hall-of-mirrors feedback loop without FLAG_SECURE.
      */
+    @android.annotation.TargetApi(29)
     private boolean installSkipScreenshot(View host) {
+        if (android.os.Build.VERSION.SDK_INT < 29) return false;
+
         try {
             Object viewRootImpl = null;
 
-            // Primary path used on AOSP / many Samsung builds.
+            // Same primary path used by LSFG Android.
             try {
-                Method getVri = View.class.getDeclaredMethod("getViewRootImpl");
+                Method getVri = host.getClass().getMethod("getViewRootImpl");
                 getVri.setAccessible(true);
                 viewRootImpl = getVri.invoke(host);
             } catch (Throwable ignored) {
             }
 
+            // OEM fallback.
             if (viewRootImpl == null) {
                 try {
-                    Method getVri = host.getClass().getMethod("getViewRootImpl");
+                    Method getVri = View.class.getDeclaredMethod("getViewRootImpl");
                     getVri.setAccessible(true);
                     viewRootImpl = getVri.invoke(host);
                 } catch (Throwable ignored) {
@@ -315,16 +333,30 @@ public class MirrorOverlayService extends Service {
 
             SurfaceControl sc = null;
 
-            // First try the hidden getter.
+            // AOSP path: ViewRootImpl.getSurfaceControl().
             try {
-                Method getter = viewRootImpl.getClass().getDeclaredMethod("getSurfaceControl");
-                getter.setAccessible(true);
+                Method getter = viewRootImpl.getClass().getMethod("getSurfaceControl");
                 Object value = getter.invoke(viewRootImpl);
                 if (value instanceof SurfaceControl) sc = (SurfaceControl) value;
             } catch (Throwable ignored) {
             }
 
-            // Samsung/OEM fallback: find the SurfaceControl field by type.
+            // Samsung/OEM fallback: conventional mSurfaceControl field.
+            if (sc == null) {
+                Class<?> cls = viewRootImpl.getClass();
+                while (cls != null && sc == null) {
+                    try {
+                        Field field = cls.getDeclaredField("mSurfaceControl");
+                        field.setAccessible(true);
+                        Object value = field.get(viewRootImpl);
+                        if (value instanceof SurfaceControl) sc = (SurfaceControl) value;
+                    } catch (Throwable ignored) {
+                    }
+                    cls = cls.getSuperclass();
+                }
+            }
+
+            // OEM rename fallback: find any SurfaceControl-typed field.
             if (sc == null) {
                 Class<?> cls = viewRootImpl.getClass();
                 while (cls != null && sc == null) {
@@ -345,7 +377,54 @@ public class MirrorOverlayService extends Service {
                 }
             }
 
+            // Android 12+ BLAST fallback used by LSFG for OEMs that hide SC fields.
+            if (sc == null) {
+                try {
+                    Class<?> blastClass = Class.forName("android.graphics.BLASTBufferQueue");
+                    Class<?> cls = viewRootImpl.getClass();
+
+                    while (cls != null && sc == null) {
+                        for (Field field : cls.getDeclaredFields()) {
+                            if (!blastClass.isAssignableFrom(field.getType())) continue;
+
+                            try {
+                                field.setAccessible(true);
+                                Object blast = field.get(viewRootImpl);
+                                if (blast == null) continue;
+
+                                for (String methodName :
+                                        new String[]{"getSyncedSurfaceControl", "getSurfaceControl"}) {
+                                    try {
+                                        Method method = blast.getClass().getMethod(methodName);
+                                        Object value = method.invoke(blast);
+                                        if (value instanceof SurfaceControl) {
+                                            sc = (SurfaceControl) value;
+                                            break;
+                                        }
+                                    } catch (Throwable ignored) {
+                                    }
+                                }
+                            } catch (Throwable ignored) {
+                            }
+
+                            if (sc != null) break;
+                        }
+                        cls = cls.getSuperclass();
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+
             if (sc == null || !sc.isValid()) return false;
+
+            // The SurfaceControl may exist before SurfaceFlinger has assigned its native handle.
+            try {
+                Field nativeObject = SurfaceControl.class.getDeclaredField("mNativeObject");
+                nativeObject.setAccessible(true);
+                if (nativeObject.getLong(sc) == 0L) return false;
+            } catch (Throwable ignored) {
+                // Some OEMs hide the field; isValid() above is still useful.
+            }
 
             SurfaceControl.Transaction transaction = new SurfaceControl.Transaction();
             Method skip = null;
@@ -362,21 +441,20 @@ public class MirrorOverlayService extends Service {
                 for (Method method : transaction.getClass().getDeclaredMethods()) {
                     if ("setSkipScreenshot".equals(method.getName())
                             && method.getParameterTypes().length == 2) {
-                        skip = method;
-                        skip.setAccessible(true);
-                        break;
+                        try {
+                            method.setAccessible(true);
+                            skip = method;
+                            break;
+                        } catch (Throwable ignored) {
+                        }
                     }
                 }
             }
 
-            if (skip == null) {
-                transaction.close();
-                return false;
-            }
+            if (skip == null) return false;
 
             skip.invoke(transaction, sc, true);
             transaction.apply();
-            transaction.close();
             return true;
         } catch (Throwable t) {
             return false;
@@ -496,6 +574,7 @@ public class MirrorOverlayService extends Service {
 ''')
 
 b = build.read_text()
+b = b.replace("minSdk 26", "minSdk 29", 1)
 b = b.replace("versionCode 23", "versionCode 24", 1)
 b = b.replace("versionName '2.3.0'", "versionName '2.4.0'", 1)
 build.write_text(b)
