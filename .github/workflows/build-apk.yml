@@ -68,6 +68,20 @@ jobs:
       - name: Apply v2.2 reliable brightness
         run: python patch/apply_v22.py src
 
+      - name: Apply v2.3 product-ready fixes
+        working-directory: src
+        shell: bash
+        run: |
+          patch -p1 < ../patch/v23_main.patch
+          patch -p1 < ../patch/v23_permission.patch
+          patch -p1 < ../patch/v23_mirror.patch
+          patch -p1 < ../patch/v23_rotation.patch
+          patch -p1 < ../patch/v23_meta.patch
+
+      - name: Validate v2.3 critical behavior
+        working-directory: src
+        run: python ../patch/validate_v23.py .
+
       - name: Package patched source snapshot
         shell: bash
         run: zip -qr Projektorlage-patched-source.zip src
@@ -114,13 +128,13 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.2.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.3.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v2.2-debug-apk
-          path: Projektorlage-v2.2.apk
+          name: Projektorlage-v2.3-debug-apk
+          path: Projektorlage-v2.3.apk
           if-no-files-found: error
 
       - name: Publish test release
@@ -129,5 +143,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v2.2-test >/dev/null 2>&1 || gh release create v2.2-test --prerelease --title "Projektorläge v2.2 test" --notes "Tillförlitlig maxljusstyrka: appen läser enhetens verkliga maxvärde i stället för att anta 255, låser manuell ljusstyrka och återställer max flera gånger medan Netflix startar. OpenGL-spegelmotorn och projektorprofilerna ligger kvar."
-          gh release upload v2.2-test Projektorlage-v2.2.apk --clobber
+          gh release view v2.3-test >/dev/null 2>&1 || gh release create v2.3-test --prerelease --title "Projektorläge v2.3 test" --notes "Förhandsversion efter produktgranskning: verifierad rotation och ljusstyrka, appbaserad skärmdelning för att undvika återkopplingsloopen, korrigerad OpenGL-spegelaxel, borttagen vit boost och tydlig startstatus."
+          gh release upload v2.3-test Projektorlage-v2.3.apk --clobber
