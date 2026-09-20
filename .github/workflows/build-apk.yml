@@ -68,6 +68,17 @@ jobs:
       - name: Apply v2.2 reliable brightness
         run: python patch/apply_v22.py src
 
+      - name: Package patched source snapshot
+        shell: bash
+        run: zip -qr Projektorlage-patched-source.zip src
+
+      - name: Upload patched source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: Projektorlage-patched-source
+          path: Projektorlage-patched-source.zip
+          if-no-files-found: error
+
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
