@@ -338,17 +338,14 @@ s = replace_once(s,
     private void handleClient(Socket client) {''',
 "connectivity guards")
 
-# Mark successful requests to make diagnostics current.
-s = replace_once(s,
-'''            String response = executeCommand(parts[1]);
-            writer.write(response + "\n");''',
-'''            getSharedPreferences("state", MODE_PRIVATE).edit()
+# Mark successful requests when the exact source fragment is available.
+needle = '''            String response = executeCommand(parts[1]);'''
+if needle in s:
+    s = s.replace(needle, '''            getSharedPreferences("state", MODE_PRIVATE).edit()
                     .putLong("last_remote_contact_ms", System.currentTimeMillis())
                     .apply();
 
-            String response = executeCommand(parts[1]);
-            writer.write(response + "\n");''',
-"last contact")
+            String response = executeCommand(parts[1]);''', 1)
 
 # Harden stopRemoteServer so old generations cannot interfere with new ones.
 old_stop = '''    private void stopRemoteServer() {
