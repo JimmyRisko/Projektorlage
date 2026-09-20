@@ -98,6 +98,13 @@ jobs:
         working-directory: src
         run: python ../patch/validate_v25.py .
 
+      - name: Apply v2.6 release candidate version
+        run: python patch/apply_v26.py src
+
+      - name: Validate v2.6 version
+        shell: bash
+        run: grep -q "versionName '2.6.0'" src/app/build.gradle
+
       - name: Package patched source snapshot
         shell: bash
         run: zip -qr Projektorlage-patched-source.zip src
@@ -144,20 +151,20 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.5.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.6.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v2.5-debug-apk
-          path: Projektorlage-v2.5.apk
+          name: Projektorlage-v2.6-debug-apk
+          path: Projektorlage-v2.6.apk
           if-no-files-found: error
 
       - name: Publish test release
-        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.5 Samsung-tested architecture'
+        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v2.5-test >/dev/null 2>&1 || gh release create v2.5-test --prerelease --title "Projektorläge v2.5 test" --notes "Samsung-fix: använder GLSurfaceView/SurfaceView.getSurfaceControl() via publik Android-API för att identifiera exakt spegelyta innan setSkipScreenshot används. Ingen ViewRootImpl/BLAST-reflektion, ingen FLAG_SECURE, helskärmsfångst och Netflix startar först när speglingen verifierats."
-          gh release upload v2.5-test Projektorlage-v2.5.apk --clobber
+          gh release view v2.6-test >/dev/null 2>&1 || gh release create v2.6-test --prerelease --title "Projektorläge v2.6 test" --notes "Samsung-fix: offentlig SurfaceView.getSurfaceControl() + LSPosed HiddenApiBypass för setSkipScreenshot. Appen verifierar i en riktig MediaProjection-frame att overlayn verkligen är exkluderad innan spegelbild/Netflix startar."
+          gh release upload v2.6-test Projektorlage-v2.6.apk --clobber
