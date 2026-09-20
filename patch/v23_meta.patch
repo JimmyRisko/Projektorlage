@@ -1,0 +1,35 @@
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -34,7 +34,8 @@
+ 
+         <activity
+             android:name=".MirrorPermissionActivity"
+-            android:exported="false" />
++            android:exported="false"
++            android:configChanges="orientation|screenSize|keyboardHidden" />
+ 
+         <activity
+             android:name=".VideoPlayerActivity"
+@@ -44,8 +45,7 @@
+ 
+         <activity
+             android:name=".MainActivity"
+-            android:exported="true"
+-            android:screenOrientation="portrait">
++            android:exported="true">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@
+         applicationId 'se.projektorlage.app'
+         minSdk 26
+         targetSdk 35
+-        versionCode 22
+-        versionName '2.2.0'
++        versionCode 23
++        versionName '2.3.0'
+     }
+ 
+     buildTypes {
