@@ -50,15 +50,11 @@ s=s.replace(
 
 # Handle action before ACTION_START guard.
 needle='''        if (ACTION_PROFILE.equals(action)) {
-            String profile = intent.getStringExtra(EXTRA_PROFILE);
-            applyPictureProfile(profile);
             return START_NOT_STICKY;
         }
 
         if (!ACTION_START.equals(action)) return START_NOT_STICKY;'''
 repl='''        if (ACTION_PROFILE.equals(action)) {
-            String profile = intent.getStringExtra(EXTRA_PROFILE);
-            applyPictureProfile(profile);
             return START_NOT_STICKY;
         }
 
