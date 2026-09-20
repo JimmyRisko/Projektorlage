@@ -403,26 +403,20 @@ s = replace_once(s,
 svc.write_text(s)
 
 # ---- Client: automatic retries for transient server/network hiccups ----
-c = client.read_text()
+client.write_text(r'''package se.projektorlage.app;
 
-old_send = '''    public static String send(String host, int port, String pin, String command) throws Exception {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(host, port), 1800);
-            socket.setSoTimeout(2200);
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 
-            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
-            BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+public final class RemoteClient {
+    private RemoteClient() {}
 
-            writer.write(pin + "|" + command + "\n");
-            writer.flush();
-
-            String response = reader.readLine();
-            if (response == null) throw new IllegalStateException("Ingen respons från projektormobilen");
-            return response;
-        }
-    }'''
-
-new_send = '''    public static String send(String host, int port, String pin, String command) throws Exception {
+    public static String send(String host, int port, String pin, String command) throws Exception {
         Exception lastError = null;
         final int[] delays = new int[]{0, 250, 500, 900};
 
@@ -447,7 +441,7 @@ new_send = '''    public static String send(String host, int port, String pin, S
                 BufferedReader reader = new BufferedReader(new InputStreamReader(
                         socket.getInputStream(), StandardCharsets.UTF_8));
 
-                writer.write(pin + "|" + command + "\n");
+                writer.write(pin + "|" + command + "\\n");
                 writer.flush();
 
                 String response = reader.readLine();
@@ -463,10 +457,9 @@ new_send = '''    public static String send(String host, int port, String pin, S
         throw lastError != null
                 ? lastError
                 : new IllegalStateException("Ingen kontakt med projektormobilen");
-    }'''
-
-c = replace_once(c, old_send, new_send, "client retry")
-client.write_text(c)
+    }
+}
+''')
 
 # Version
 b = build.read_text()
