@@ -1,0 +1,71 @@
+--- a/app/src/main/java/se/projektorlage/app/MainActivity.java
++++ b/app/src/main/java/se/projektorlage/app/MainActivity.java
+@@ -370,7 +370,7 @@
+     }
+ 
+     private void showProjectorPanel() {
+-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
++        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+         getSharedPreferences("ui", MODE_PRIVATE).edit().putString("role", "projector").apply();
+         roleChooser.setVisibility(View.GONE);
+         projectorPanel.setVisibility(View.VISIBLE);
+--- a/app/src/main/java/se/projektorlage/app/RotationService.java
++++ b/app/src/main/java/se/projektorlage/app/RotationService.java
+@@ -223,16 +223,20 @@
+ 
+             int autoRotate = Settings.System.getInt(
+                     getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 1);
+-            int actual = Settings.System.getInt(
++            int stored = Settings.System.getInt(
+                     getContentResolver(), Settings.System.USER_ROTATION, Surface.ROTATION_0);
+-            boolean verified = autoRotate == 0 && actual == target;
++            boolean settingAccepted = autoRotate == 0 && stored == target;
+ 
+             getSharedPreferences("state", MODE_PRIVATE).edit()
+                     .putInt("forced_surface_rotation", target)
+-                    .putInt("rotation_actual", actual)
+-                    .putBoolean("rotation_verified", verified)
++                    .putInt("rotation_actual", stored)
++                    .putBoolean("rotation_verified", false)
+                     .apply();
+-            return verified;
++
++            if (settingAccepted) {
++                verifyDisplayRotation(target, 0);
++            }
++            return settingAccepted;
+         } catch (Exception e) {
+             getSharedPreferences("state", MODE_PRIVATE).edit()
+                     .putBoolean("rotation_verified", false)
+@@ -241,6 +245,31 @@
+         }
+     }
+ 
++    private void verifyDisplayRotation(int target, int attempt) {
++        new Handler(Looper.getMainLooper()).postDelayed(() -> {
++            boolean verified = false;
++            int actual = Surface.ROTATION_0;
++            try {
++                WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
++                if (wm != null) {
++                    actual = wm.getDefaultDisplay().getRotation();
++                    verified = actual == target;
++                }
++            } catch (Exception ignored) {
++            }
++
++            getSharedPreferences("state", MODE_PRIVATE).edit()
++                    .putInt("rotation_actual", actual)
++                    .putBoolean("rotation_verified", verified)
++                    .apply();
++
++            if (!verified && attempt < 10
++                    && getSharedPreferences("state", MODE_PRIVATE).getBoolean("enabled", false)) {
++                verifyDisplayRotation(target, attempt + 1);
++            }
++        }, attempt == 0 ? 120 : 180);
++    }
++
+     private void captureOriginalRotationSettings() {
+         android.content.SharedPreferences prefs = getSharedPreferences("state", MODE_PRIVATE);
+         if (prefs.getBoolean("rotation_backup_valid", false)) return;
