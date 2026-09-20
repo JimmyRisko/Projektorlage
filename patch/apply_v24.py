@@ -417,15 +417,6 @@ public class MirrorOverlayService extends Service {
 
             if (sc == null || !sc.isValid()) return false;
 
-            // The SurfaceControl may exist before SurfaceFlinger has assigned its native handle.
-            try {
-                Field nativeObject = SurfaceControl.class.getDeclaredField("mNativeObject");
-                nativeObject.setAccessible(true);
-                if (nativeObject.getLong(sc) == 0L) return false;
-            } catch (Throwable ignored) {
-                // Some OEMs hide the field; isValid() above is still useful.
-            }
-
             SurfaceControl.Transaction transaction = new SurfaceControl.Transaction();
             Method skip = null;
 
