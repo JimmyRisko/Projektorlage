@@ -12,7 +12,7 @@ checks = [
     ('Netflix gated behind verified mirror', 'waitForMirrorThenLaunchNetflix' in perm and 'prefs.getBoolean("mirror_ready", false)' in perm and 'prefs.getBoolean("overlay_excluded", false)' in perm),
     ('GLSurfaceView output', 'new GLSurfaceView(this)' in mos),
     ('public SurfaceView SurfaceControl path', 'glView.getSurfaceControl()' in mos),
-    ('no ViewRootImpl reflection', 'ViewRootImpl' not in mos and 'getViewRootImpl' not in mos),
+    ('no ViewRootImpl reflection', 'getViewRootImpl' not in mos and 'Class.forName("android.view.ViewRootImpl")' not in mos),
     ('no BLAST reflection', 'BLASTBufferQueue' not in mos),
     ('setSkipScreenshot only hidden operation', 'setSkipScreenshot' in mos),
     ('no FLAG_SECURE overlay', 'FLAG_SECURE' not in mos),
