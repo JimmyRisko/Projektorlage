@@ -12,7 +12,7 @@ checks = [
     ('known working TextureView mirror', 'textureView.setScaleX(-1f)' in mos),
     ('skip screenshot is installed before capture', 'installSkipScreenshot(overlay)' in mos and 'startVirtualDisplay(st)' in mos),
     ('SurfaceFlinger skipScreenshot used', 'setSkipScreenshot' in mos),
-    ('no FLAG_SECURE black-overlay workaround', 'FLAG_SECURE' not in mos),
+    ('no FLAG_SECURE black-overlay workaround', '| WindowManager.LayoutParams.FLAG_SECURE' not in mos && 'windowFlags |= WindowManager.LayoutParams.FLAG_SECURE' not in mos),
     ('overlay blocks local touch instead of alpha-clamped passthrough', 'overlay.setOnTouchListener((v, event) -> true)' in mos),
     ('fails closed when skipScreenshot is unavailable', 'Samsung/Android blockerade overlay-undantaget' in mos),
     ('v2.4 version', "versionName '2.4.0'" in build),
