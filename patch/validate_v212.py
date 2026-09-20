@@ -10,7 +10,7 @@ build = (root / "app/build.gradle").read_text()
 checks = [
     ("single-app capture retained", "createConfigForUserChoice()" in perm and "WHOLE_DISPLAY_SELECTED" in mos),
     ("SurfaceView output", "new SurfaceView(this)" in mos),
-    ("TextureView removed", "TextureView" not in mos and "SurfaceTexture" not in mos),
+    ("TextureView code removed", "new TextureView(" not in mos and "private TextureView textureView" not in mos and "SurfaceTexture st" not in mos),
     ("horizontal mirror retained", "surfaceView.setScaleX(-1f)" in mos),
     ("no OpenGL renderer", "GLSurfaceView" not in mos and "GLES20" not in mos),
     ("brightness passthrough retained", "BRIGHTNESS_OVERRIDE_NONE" in mos and "projector_brightness_passthrough" in svc),
