@@ -138,6 +138,13 @@ jobs:
         working-directory: src
         run: python ../patch/validate_v213_diag.py .
 
+      - name: Make diagnostic app install side-by-side
+        run: python patch/apply_diag_separate.py src
+
+      - name: Validate side-by-side diagnostic identity
+        working-directory: src
+        run: python ../patch/validate_diag_separate.py .
+
       - name: Package patched source snapshot
         shell: bash
         run: zip -qr Projektorlage-patched-source.zip src
@@ -184,25 +191,25 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.13-diag.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-Diagnostik.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v2.13-diag-debug-apk
-          path: Projektorlage-v2.13-diag.apk
+          name: Projektorlage-Diagnostik-debug-apk
+          path: Projektorlage-Diagnostik.apk
           if-no-files-found: error
 
       - name: Commit verified APK snapshot
         shell: bash
         run: |
           mkdir -p build-artifacts
-          cp Projektorlage-v2.13-diag.apk build-artifacts/Projektorlage-v2.13-diag.apk
-          sha256sum Projektorlage-v2.13-diag.apk > build-artifacts/Projektorlage-v2.13-diag.sha256
+          cp Projektorlage-Diagnostik.apk build-artifacts/Projektorlage-Diagnostik.apk
+          sha256sum Projektorlage-Diagnostik.apk > build-artifacts/Projektorlage-Diagnostik.sha256
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build-artifacts/Projektorlage-v2.13-diag.apk build-artifacts/Projektorlage-v2.13-diag.sha256
-          git commit -m "Built v2.13 diagnostic APK [skip ci]" || true
+          git add build-artifacts/Projektorlage-Diagnostik.apk build-artifacts/Projektorlage-Diagnostik.sha256
+          git commit -m "Built side-by-side diagnostic APK [skip ci]" || true
           git push
 
       - name: Publish test release
@@ -212,4 +219,4 @@ jobs:
         shell: bash
         run: |
           gh release view v2.13-diag >/dev/null 2>&1 || gh release create v2.13-diag --prerelease --title "Projektorläge v2.13 diagnostik" --notes "Exakt v2.11-spegelkedja med diagnostiklogg för MediaProjection callbacks, capture resize/visibility och display/brightness snapshots. Ingen bildfix eller renderingsändring."
-          gh release upload v2.13-diag Projektorlage-v2.13-diag.apk --clobber
+          gh release upload v2.13-diag Projektorlage-Diagnostik.apk --clobber
