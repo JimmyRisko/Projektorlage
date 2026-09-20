@@ -59,6 +59,8 @@ jobs:
         run: python patch/apply_v17.py src
       - name: Apply v1.8 integrated mirror projector
         run: python patch/apply_v18.py src
+      - name: Apply v1.9 no gray veil
+        run: python patch/apply_v19.py src
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -88,13 +90,13 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v1.8.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v1.9.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v1.8-debug-apk
-          path: Projektorlage-v1.8.apk
+          name: Projektorlage-v1.9-debug-apk
+          path: Projektorlage-v1.9.apk
           if-no-files-found: error
 
       - name: Publish test release
@@ -102,5 +104,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v1.8-test >/dev/null 2>&1 || gh release create v1.8-test --title "Projektorläge v1.8 test" --notes "Spegelprojektor integrerad i STARTA PROJEKTOR: Androids skärmdelning används som källa, resultatet visas horisontellt spegelvänt i ett säkert overlay-lager som inte fångas igen, rätt rotation/maxljus/fjärr startas och Netflix öppnas automatiskt."
-          gh release upload v1.8-test Projektorlage-v1.8.apk --clobber
+          gh release view v1.9-test >/dev/null 2>&1 || gh release create v1.9-test --title "Projektorläge v1.9 test" --notes "Tar bort den vita +12%-overlayn som gav en grå hinna och sämre kontrast. Projektorläget använder i stället verklig maxljusstyrka och spegelfönstret begär 100% skärmljus. Spegling, rotation, fjärr och Netflix är fortfarande integrerade."
+          gh release upload v1.9-test Projektorlage-v1.9.apk --clobber
