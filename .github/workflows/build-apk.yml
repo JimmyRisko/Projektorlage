@@ -105,6 +105,13 @@ jobs:
         shell: bash
         run: grep -q "versionName '2.6.0'" src/app/build.gradle
 
+      - name: Apply v2.7 app-only mirror fix
+        run: python patch/apply_v27.py src
+
+      - name: Validate v2.7 architecture
+        working-directory: src
+        run: python ../patch/validate_v27.py .
+
       - name: Package patched source snapshot
         shell: bash
         run: zip -qr Projektorlage-patched-source.zip src
@@ -151,20 +158,20 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.6.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.7.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v2.6-debug-apk
-          path: Projektorlage-v2.6.apk
+          name: Projektorlage-v2.7-debug-apk
+          path: Projektorlage-v2.7.apk
           if-no-files-found: error
 
       - name: Publish test release
-        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.6 verified Samsung build'
+        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.7 app-only mirror fix'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v2.6-test >/dev/null 2>&1 || gh release create v2.6-test --prerelease --title "Projektorläge v2.6 test" --notes "Samsung-fix: offentlig SurfaceView.getSurfaceControl() + LSPosed HiddenApiBypass för setSkipScreenshot. Appen verifierar i en riktig MediaProjection-frame att overlayn verkligen är exkluderad innan spegelbild/Netflix startar."
-          gh release upload v2.6-test Projektorlage-v2.6.apk --clobber
+          gh release view v2.7-test >/dev/null 2>&1 || gh release create v2.7-test --prerelease --title "Projektorläge v2.7 test" --notes "Byter bort helskärmsfångst och hidden-API-spåret. Android delar en vald app, spegelbilden visas via TextureView, maxljus behålls och appen stoppar starten direkt om Hela skärmen valts för att undvika återkopplingsloopen."
+          gh release upload v2.7-test Projektorlage-v2.7.apk --clobber
