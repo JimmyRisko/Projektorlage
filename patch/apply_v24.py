@@ -54,6 +54,127 @@ s = s.replace(
 )
 perm.write_text(s)
 
+# ---- Product-safe startup sequencing: do not open Netflix until the mirror
+# overlay has been excluded from capture and real frames are flowing.
+s = perm.read_text()
+old_startup = '''    private void startMirrorAndNetflix() {
+        getSharedPreferences("state", MODE_PRIVATE).edit()
+                .putString("startup_state", "STARTING_MIRROR")
+                .apply();
+
+        Intent mirror = new Intent(this, MirrorOverlayService.class);
+        mirror.setAction(MirrorOverlayService.ACTION_START);
+        mirror.putExtra(MirrorOverlayService.EXTRA_RESULT_CODE, captureResultCode);
+        mirror.putExtra(MirrorOverlayService.EXTRA_RESULT_DATA, captureResultData);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(mirror);
+        } else {
+            startService(mirror);
+        }
+
+        Intent netflix = getPackageManager().getLaunchIntentForPackage(NETFLIX_PACKAGE);
+        if (netflix == null) {
+            failAndRestore("ERR_MIRROR", "Netflix-appen hittades inte på mobilen.");
+            return;
+        }
+
+        netflix.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        startActivity(netflix);
+
+        setupDeadline = System.currentTimeMillis() + 6000;
+        handler.postDelayed(this::waitForMirror, 200);
+    }
+
+    private void waitForMirror() {
+        SharedPreferences prefs = getSharedPreferences("state", MODE_PRIVATE);
+        if (prefs.getBoolean("mirror_ready", false)) {
+            prefs.edit().putString("startup_state", "READY").apply();
+            finish();
+            return;
+        }
+
+        String mirrorError = prefs.getString("mirror_error", "");
+        if (!mirrorError.isEmpty()) {
+            failAndRestore("ERR_MIRROR", "Speglingen kunde inte starta: " + mirrorError);
+            return;
+        }
+
+        if (System.currentTimeMillis() >= setupDeadline) {
+            failAndRestore("ERR_MIRROR", "Speglingen gav ingen bild. Starta om projektorläget och välj Netflix i Android-rutan.");
+            return;
+        }
+
+        handler.postDelayed(this::waitForMirror, 200);
+    }'''
+
+new_startup = '''    private void startMirrorAndNetflix() {
+        Intent netflix = getPackageManager().getLaunchIntentForPackage(NETFLIX_PACKAGE);
+        if (netflix == null) {
+            failAndRestore("ERR_MIRROR", "Netflix-appen hittades inte på mobilen.");
+            return;
+        }
+
+        getSharedPreferences("state", MODE_PRIVATE).edit()
+                .putString("startup_state", "STARTING_MIRROR")
+                .apply();
+
+        Intent mirror = new Intent(this, MirrorOverlayService.class);
+        mirror.setAction(MirrorOverlayService.ACTION_START);
+        mirror.putExtra(MirrorOverlayService.EXTRA_RESULT_CODE, captureResultCode);
+        mirror.putExtra(MirrorOverlayService.EXTRA_RESULT_DATA, captureResultData);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(mirror);
+        } else {
+            startService(mirror);
+        }
+
+        // Do not open Netflix until the overlay is definitely excluded from
+        // MediaProjection and actual frames have reached the mirrored TextureView.
+        setupDeadline = System.currentTimeMillis() + 7000;
+        handler.postDelayed(this::waitForMirrorThenLaunchNetflix, 150);
+    }
+
+    private void waitForMirrorThenLaunchNetflix() {
+        SharedPreferences prefs = getSharedPreferences("state", MODE_PRIVATE);
+
+        String mirrorError = prefs.getString("mirror_error", "");
+        if (!mirrorError.isEmpty()) {
+            failAndRestore("ERR_MIRROR", "Speglingen kunde inte starta: " + mirrorError);
+            return;
+        }
+
+        if (prefs.getBoolean("mirror_ready", false)
+                && prefs.getBoolean("overlay_excluded", false)) {
+            Intent netflix = getPackageManager().getLaunchIntentForPackage(NETFLIX_PACKAGE);
+            if (netflix == null) {
+                failAndRestore("ERR_MIRROR", "Netflix-appen hittades inte på mobilen.");
+                return;
+            }
+
+            netflix.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(netflix);
+
+            prefs.edit().putString("startup_state", "READY").apply();
+            finish();
+            return;
+        }
+
+        if (System.currentTimeMillis() >= setupDeadline) {
+            failAndRestore("ERR_MIRROR",
+                    "Speglingen kunde inte verifieras. Projektorläget har återställts utan att öppna Netflix.");
+            return;
+        }
+
+        handler.postDelayed(this::waitForMirrorThenLaunchNetflix, 150);
+    }'''
+
+if old_startup not in s:
+    raise SystemExit("v2.4 startup sequencing patch did not match")
+s = s.replace(old_startup, new_startup, 1)
+perm.write_text(s)
+
 # ---- Replace the mirror service with the known-working TextureView path plus
 # SurfaceFlinger eSkipScreenshot, the technique used by LSFG Android to stop
 # the overlay from feeding back into MediaProjection.
