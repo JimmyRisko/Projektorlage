@@ -1,0 +1,42 @@
+name: Publish exact yesterday v0.4
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/publish-exact-v04.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download exact v0.4 artifact from yesterday
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir exact-v04
+          gh api repos/JimmyRisko/Projektorlage/actions/artifacts/10585141168/zip > exact-v04.zip
+          unzip -q exact-v04.zip -d exact-v04
+          find exact-v04 -maxdepth 2 -type f -print
+          APK="$(find exact-v04 -type f -name '*.apk' | head -n1)"
+          test -n "$APK"
+          echo "a9d709efd0a7be029218a77ca4aea3233b1ea0faf8f54c197c889b2fa4d6926d  $APK" | sha256sum -c -
+          mkdir -p build-artifacts
+          cp "$APK" build-artifacts/Projektorlage-Exakt-Igar-v0.4.apk
+
+      - name: Commit exact binary
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f build-artifacts/Projektorlage-Exakt-Igar-v0.4.apk
+          git commit -m "Publish exact yesterday v0.4 APK [skip ci]" || true
+          git push
