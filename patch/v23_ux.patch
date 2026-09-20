@@ -1,0 +1,41 @@
+--- a/app/src/main/java/se/projektorlage/app/MainActivity.java
++++ b/app/src/main/java/se/projektorlage/app/MainActivity.java
+@@ -60,8 +60,6 @@
+     protected void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+         setContentView(buildUi());
+-        askNotificationPermissionIfNeeded();
+-        askNearbyWifiPermissionIfNeeded();
+ 
+         String savedRole = getSharedPreferences("ui", MODE_PRIVATE)
+                 .getString("role", "");
+@@ -371,6 +369,7 @@
+ 
+     private void showProjectorPanel() {
+         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
++        askNotificationPermissionIfNeeded();
+         getSharedPreferences("ui", MODE_PRIVATE).edit().putString("role", "projector").apply();
+         roleChooser.setVisibility(View.GONE);
+         projectorPanel.setVisibility(View.VISIBLE);
+@@ -380,6 +379,7 @@
+ 
+     private void showRemotePanel() {
+         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
++        askNearbyWifiPermissionIfNeeded();
+         getSharedPreferences("ui", MODE_PRIVATE).edit().putString("role", "remote").apply();
+         roleChooser.setVisibility(View.GONE);
+         projectorPanel.setVisibility(View.GONE);
+--- a/app/src/main/java/se/projektorlage/app/RotationService.java
++++ b/app/src/main/java/se/projektorlage/app/RotationService.java
+@@ -263,8 +263,9 @@
+                     .putBoolean("rotation_verified", verified)
+                     .apply();
+ 
+-            if (!verified && attempt < 10
+-                    && getSharedPreferences("state", MODE_PRIVATE).getBoolean("enabled", false)) {
++            boolean enabled = getSharedPreferences("state", MODE_PRIVATE)
++                    .getBoolean("enabled", false);
++            if (!verified && attempt < 10 && (attempt < 2 || enabled)) {
+                 verifyDisplayRotation(target, attempt + 1);
+             }
+         }, attempt == 0 ? 120 : 180);
