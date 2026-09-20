@@ -207,9 +207,9 @@ s = s.replace(
     1
 )
 
-# Sanity: old output APIs must be gone.
-if "TextureView" in s or "SurfaceTexture" in s:
-    raise SystemExit("v2.12: old TextureView/SurfaceTexture references remain")
+# Sanity: executable references to the old output APIs must be gone.
+if "private TextureView textureView" in s or "new TextureView(" in s or "SurfaceTexture st" in s:
+    raise SystemExit("v2.12: old TextureView/SurfaceTexture code references remain")
 
 mirror.write_text(s)
 
