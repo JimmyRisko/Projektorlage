@@ -22,7 +22,7 @@ jobs:
       - name: Rebuild safe v2 source
         shell: bash
         run: |
-          base64 --decode payload/v2_safe.b64 > projektor-v2-safe.zip
+          cat payload/v2_safe_1.b64 payload/v2_safe_2.b64 payload/v2_safe_3.b64 | base64 --decode > projektor-v2-safe.zip
           mkdir src
           unzip -q projektor-v2-safe.zip -d src
 
