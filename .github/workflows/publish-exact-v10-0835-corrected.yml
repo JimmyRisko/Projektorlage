@@ -1,0 +1,42 @@
+name: Publish exact 08-35 v1.0 corrected
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/publish-exact-v10-0835-corrected.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact successful 08:35 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir exact
+          gh api repos/JimmyRisko/Projektorlage/actions/artifacts/10600352650/zip > exact.zip
+          unzip -q exact.zip -d exact
+          APK="$(find exact -type f -name '*.apk' | head -n1)"
+          test -n "$APK"
+          ACTUAL="$(sha256sum "$APK" | awk '{print $1}')"
+          echo "Exact APK SHA-256: $ACTUAL"
+          test "$(stat -c%s "$APK")" -gt 30000
+          mkdir -p build-artifacts
+          cp "$APK" build-artifacts/Projektorlage-Exakt-0835-v1.0.apk
+          echo "$ACTUAL  Projektorlage-Exakt-0835-v1.0.apk" > build-artifacts/Projektorlage-Exakt-0835-v1.0.sha256
+      - name: Commit exact binary
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f build-artifacts/Projektorlage-Exakt-0835-v1.0.apk build-artifacts/Projektorlage-Exakt-0835-v1.0.sha256
+          git commit -m "Publish exact successful 08-35 v1.0 APK [skip ci]" || true
+          git push
