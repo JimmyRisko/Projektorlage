@@ -127,11 +127,9 @@ if anchor not in s:
 
 helpers = r'''    private String getDisplaySnapshot() {
         try {
-            android.view.Display display = getDisplay();
-            if (display == null) {
-                display = ((WindowManager) getSystemService(WINDOW_SERVICE))
-                        .getDefaultDisplay();
-            }
+            android.view.Display display =
+                    ((WindowManager) getSystemService(WINDOW_SERVICE))
+                            .getDefaultDisplay();
 
             android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
             display.getRealMetrics(metrics);
