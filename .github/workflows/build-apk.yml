@@ -140,7 +140,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish test release
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.3 validated build'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
