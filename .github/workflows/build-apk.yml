@@ -112,19 +112,17 @@ jobs:
         working-directory: src
         run: python ../patch/validate_v27.py .
 
-      - name: Apply v2.8 Samsung brightness fix
-        run: python patch/apply_v28.py src
+      - name: Apply v2.10 stable restore version
+        run: python patch/apply_v210.py src
 
-      - name: Validate v2.8 brightness architecture
-        working-directory: src
-        run: python ../patch/validate_v28.py .
-
-      - name: Apply v2.9 direct GPU luminance renderer
-        run: python patch/apply_v29.py src
-
-      - name: Validate v2.9 GPU renderer
-        working-directory: src
-        run: python ../patch/validate_v29.py .
+      - name: Validate v2.10 stable restore
+        shell: bash
+        run: |
+          grep -q "versionCode 30" src/app/build.gradle
+          grep -q "versionName '2.10.0'" src/app/build.gradle
+          grep -q "new TextureView(this)" src/app/src/main/java/se/projektorlage/app/MirrorOverlayService.java
+          grep -q "textureView.setScaleX(-1f)" src/app/src/main/java/se/projektorlage/app/MirrorOverlayService.java
+          grep -q "WHOLE_DISPLAY_SELECTED" src/app/src/main/java/se/projektorlage/app/MirrorOverlayService.java
 
       - name: Package patched source snapshot
         shell: bash
@@ -172,32 +170,32 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.9.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.10.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v2.9-debug-apk
-          path: Projektorlage-v2.9.apk
+          name: Projektorlage-v2.10-debug-apk
+          path: Projektorlage-v2.10.apk
           if-no-files-found: error
 
       - name: Commit verified APK snapshot
         shell: bash
         run: |
           mkdir -p build-artifacts
-          cp Projektorlage-v2.9.apk build-artifacts/Projektorlage-v2.9.apk
-          sha256sum Projektorlage-v2.9.apk > build-artifacts/Projektorlage-v2.9.sha256
+          cp Projektorlage-v2.10.apk build-artifacts/Projektorlage-v2.10.apk
+          sha256sum Projektorlage-v2.10.apk > build-artifacts/Projektorlage-v2.10.sha256
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build-artifacts/Projektorlage-v2.9.apk build-artifacts/Projektorlage-v2.9.sha256
-          git commit -m "Built v2.7 APK [skip ci]" || true
+          git add build-artifacts/Projektorlage-v2.10.apk build-artifacts/Projektorlage-v2.10.sha256
+          git commit -m "Built v2.10 stable APK [skip ci]" || true
           git push
 
       - name: Publish test release
-        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.9 GPU luminance fix'
+        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.10 stable restore'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v2.9-test >/dev/null 2>&1 || gh release create v2.9-test --prerelease --title "Projektorläge v2.9 test" --notes "Behåller fungerande appdelning/rotation från v2.7-v2.8 men ersätter TextureView med direkt OpenGL ES-rendering. Luminans korrigeras i GPU-shadern före visning, svart bevaras och ingen vit/grå overlay används."
-          gh release upload v2.9-test Projektorlage-v2.9.apk --clobber
+          gh release view v2.10-test >/dev/null 2>&1 || gh release create v2.10-test --prerelease --title "Projektorläge v2.10 stabil återställning" --notes "Återställer exakt den fungerande v2.7-arkitekturen: appdelning, TextureView, horisontell spegling och skydd mot helskärmsloop. Inga v2.8/v2.9-renderingsexperiment."
+          gh release upload v2.10-test Projektorlage-v2.10.apk --clobber
