@@ -166,6 +166,13 @@ jobs:
           grep -q 'DIAGNOSTIK D2' src/app/src/main/java/se/projektorlage/app/MainActivity.java
           grep -q 'KOPIERA DIAGNOSTIK / LOGG' src/app/src/main/java/se/projektorlage/app/MainActivity.java
 
+      - name: Apply D3 pre-TextureView luminance sampler
+        run: python patch/apply_diag_d3.py src
+
+      - name: Validate D3 luminance sampler
+        working-directory: src
+        run: python ../patch/validate_diag_d3.py .
+
       - name: Package patched source snapshot
         shell: bash
         run: zip -qr Projektorlage-patched-source.zip src
@@ -212,25 +219,25 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-Diagnostik-D2.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-Diagnostik-D3.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-Diagnostik-D2-debug-apk
-          path: Projektorlage-Diagnostik-D2.apk
+          name: Projektorlage-Diagnostik-D3-debug-apk
+          path: Projektorlage-Diagnostik-D3.apk
           if-no-files-found: error
 
       - name: Commit verified APK snapshot
         shell: bash
         run: |
           mkdir -p build-artifacts
-          cp Projektorlage-Diagnostik-D2.apk build-artifacts/Projektorlage-Diagnostik-D2.apk
-          sha256sum Projektorlage-Diagnostik-D2.apk > build-artifacts/Projektorlage-Diagnostik-D2.sha256
+          cp Projektorlage-Diagnostik-D3.apk build-artifacts/Projektorlage-Diagnostik-D3.apk
+          sha256sum Projektorlage-Diagnostik-D3.apk > build-artifacts/Projektorlage-Diagnostik-D3.sha256
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build-artifacts/Projektorlage-Diagnostik-D2.apk build-artifacts/Projektorlage-Diagnostik-D2.sha256
-          git commit -m "Built diagnostic D2 APK [skip ci]" || true
+          git add build-artifacts/Projektorlage-Diagnostik-D3.apk build-artifacts/Projektorlage-Diagnostik-D3.sha256
+          git commit -m "Built diagnostic D3 APK [skip ci]" || true
           git push
 
       - name: Publish test release
@@ -240,4 +247,4 @@ jobs:
         shell: bash
         run: |
           gh release view v2.13-diag >/dev/null 2>&1 || gh release create v2.13-diag --prerelease --title "Projektorläge v2.13 diagnostik" --notes "Exakt v2.11-spegelkedja med diagnostiklogg för MediaProjection callbacks, capture resize/visibility och display/brightness snapshots. Ingen bildfix eller renderingsändring."
-          gh release upload v2.13-diag Projektorlage-Diagnostik-D2.apk --clobber
+          gh release upload v2.13-diag Projektorlage-Diagnostik-D3.apk --clobber
