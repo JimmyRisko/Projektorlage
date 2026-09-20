@@ -15,6 +15,8 @@ checks = [
     ('no FLAG_SECURE black-overlay workaround', '| WindowManager.LayoutParams.FLAG_SECURE' not in mos and 'windowFlags |= WindowManager.LayoutParams.FLAG_SECURE' not in mos),
     ('overlay blocks local touch instead of alpha-clamped passthrough', 'overlay.setOnTouchListener((v, event) -> true)' in mos),
     ('fails closed when skipScreenshot is unavailable', 'Samsung/Android blockerade overlay-undantaget' in mos),
+    ('verified mirror before Netflix launch', 'waitForMirrorThenLaunchNetflix' in perm and 'prefs.getBoolean("mirror_ready", false)' in perm and 'prefs.getBoolean("overlay_excluded", false)' in perm),
+    ('Android 10+ minimum matches SurfaceControl path', 'minSdk 29' in build),
     ('v2.4 version', "versionName '2.4.0'" in build),
 ]
 failed=[name for name,ok in checks if not ok]
