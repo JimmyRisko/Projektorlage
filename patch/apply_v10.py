@@ -67,12 +67,14 @@ s = replace_once(s,
 
         if (Settings.canDrawOverlays(this)) {
             addOrientationOverlay();
+            applySavedOrientation();
             startRemoteServer();
             setEnabled(true);''',
 '''        applySavedSystemRotation();
 
         if (Settings.canDrawOverlays(this)) {
             addOrientationOverlay();
+            applySavedOrientation();
             forceProjectorBrightness();
             int savedBoost = getSharedPreferences("state", MODE_PRIVATE).getInt("light_boost_percent", 12);
             setLightBoost(savedBoost);
