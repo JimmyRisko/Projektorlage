@@ -63,11 +63,15 @@ s = replace_once(s,
 
 # Max brightness automatically whenever projector mode is enabled.
 s = replace_once(s,
-'''        if (Settings.canDrawOverlays(this)) {
+'''        applySavedSystemRotation();
+
+        if (Settings.canDrawOverlays(this)) {
             addOrientationOverlay();
             startRemoteServer();
             setEnabled(true);''',
-'''        if (Settings.canDrawOverlays(this)) {
+'''        applySavedSystemRotation();
+
+        if (Settings.canDrawOverlays(this)) {
             addOrientationOverlay();
             forceProjectorBrightness();
             int savedBoost = getSharedPreferences("state", MODE_PRIVATE).getInt("light_boost_percent", 12);
