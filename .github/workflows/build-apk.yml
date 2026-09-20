@@ -112,6 +112,13 @@ jobs:
         working-directory: src
         run: python ../patch/validate_v27.py .
 
+      - name: Apply v2.8 Samsung brightness fix
+        run: python patch/apply_v28.py src
+
+      - name: Validate v2.8 brightness architecture
+        working-directory: src
+        run: python ../patch/validate_v28.py .
+
       - name: Package patched source snapshot
         shell: bash
         run: zip -qr Projektorlage-patched-source.zip src
@@ -158,32 +165,32 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.7.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.8.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v2.7-debug-apk
-          path: Projektorlage-v2.7.apk
+          name: Projektorlage-v2.8-debug-apk
+          path: Projektorlage-v2.8.apk
           if-no-files-found: error
 
       - name: Commit verified APK snapshot
         shell: bash
         run: |
           mkdir -p build-artifacts
-          cp Projektorlage-v2.7.apk build-artifacts/Projektorlage-v2.7.apk
-          sha256sum Projektorlage-v2.7.apk > build-artifacts/Projektorlage-v2.7.sha256
+          cp Projektorlage-v2.8.apk build-artifacts/Projektorlage-v2.8.apk
+          sha256sum Projektorlage-v2.8.apk > build-artifacts/Projektorlage-v2.8.sha256
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build-artifacts/Projektorlage-v2.7.apk build-artifacts/Projektorlage-v2.7.sha256
+          git add build-artifacts/Projektorlage-v2.8.apk build-artifacts/Projektorlage-v2.8.sha256
           git commit -m "Built v2.7 APK [skip ci]" || true
           git push
 
       - name: Publish test release
-        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.7 app-only mirror fix'
+        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.8 brightness fix'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v2.7-test >/dev/null 2>&1 || gh release create v2.7-test --prerelease --title "Projektorläge v2.7 test" --notes "Byter bort helskärmsfångst och hidden-API-spåret. Android delar en vald app, spegelbilden visas via TextureView, maxljus behålls och appen stoppar starten direkt om Hela skärmen valts för att undvika återkopplingsloopen."
-          gh release upload v2.7-test Projektorlage-v2.7.apk --clobber
+          gh release view v2.8-test >/dev/null 2>&1 || gh release create v2.8-test --prerelease --title "Projektorläge v2.8 test" --notes "Behåller den fungerande v2.7-speglingen. Samsung adaptiv/HBM-ljusstyrka lämnas orörd, overlayn begär full ljusstyrka och den speglade bilden får en svartbevarande gamma-lyftning utan vit/grå hinna."
+          gh release upload v2.8-test Projektorlage-v2.8.apk --clobber
