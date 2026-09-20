@@ -11,7 +11,7 @@ build = root / "app/build.gradle"
 s = main.read_text()
 s = s.replace(
     "Tryck Starta. Android ber dig välja Netflix i en säkerhetsruta; sedan sköter appen resten.",
-    "Tryck Starta och godkänn Androids skärmdelning. Sedan sköter appen spegling, bildriktning, maxljus, Netflix och fjärr automatiskt.",
+    "Tryck Starta och godkänn Androids skärmdelning. Sedan verifierar appen spegling, bildriktning och maxljus innan Netflix öppnas.",
     1
 )
 s = s.replace(
