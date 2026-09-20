@@ -1,0 +1,109 @@
+--- a/app/src/main/java/se/projektorlage/app/MirrorOverlayService.java
++++ b/app/src/main/java/se/projektorlage/app/MirrorOverlayService.java
+@@ -54,10 +54,17 @@
+     private SurfaceTexture sourceTexture;
+ 
+     private String currentProfile = "PROJECTOR";
++    private boolean intentionalStop;
+ 
+     private final MediaProjection.Callback projectionCallback = new MediaProjection.Callback() {
+         @Override
+         public void onStop() {
++            if (!intentionalStop) {
++                getSharedPreferences("state", MODE_PRIVATE).edit()
++                        .putBoolean("mirror_ready", false)
++                        .putString("mirror_error", "skärmdelningen stoppades")
++                        .apply();
++            }
+             stopSelf();
+         }
+ 
+@@ -117,6 +124,11 @@
+             return START_NOT_STICKY;
+         }
+ 
++        getSharedPreferences("state", MODE_PRIVATE).edit()
++                .putBoolean("mirror_ready", false)
++                .remove("mirror_error")
++                .apply();
++
+         currentProfile = getSharedPreferences("state", MODE_PRIVATE)
+                 .getString("picture_profile", "PROJECTOR");
+ 
+@@ -159,8 +171,7 @@
+                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                 | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+-                | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+-                | WindowManager.LayoutParams.FLAG_SECURE;
++                | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON;
+ 
+         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                 WindowManager.LayoutParams.MATCH_PARENT,
+@@ -205,6 +216,10 @@
+                     null,
+                     mainHandler);
+         } catch (Throwable t) {
++            getSharedPreferences("state", MODE_PRIVATE).edit()
++                    .putBoolean("mirror_ready", false)
++                    .putString("mirror_error", "kunde inte skapa bildytan")
++                    .apply();
+             stopSelf();
+         }
+     }
+@@ -296,6 +311,10 @@
+ 
+     @Override
+     public void onDestroy() {
++        intentionalStop = true;
++        getSharedPreferences("state", MODE_PRIVATE).edit()
++                .putBoolean("mirror_ready", false)
++                .apply();
+         removeOverlay();
+ 
+         if (projection != null) {
+@@ -344,15 +363,15 @@
+                  1f,  1f
+         };
+ 
+-        // The X coordinates are intentionally reversed here.
+-        // This is the actual horizontal mirror, done in the GPU pipeline.
+         private final float[] texCoords = {
+-                 1f, 1f,
+                  0f, 1f,
+-                 1f, 0f,
+-                 0f, 0f
++                 1f, 1f,
++                 0f, 0f,
++                 1f, 0f
+         };
+ 
++        private int renderedFrames;
++
+         MirrorRenderer() {
+             vertexBuffer = ByteBuffer.allocateDirect(vertices.length * 4)
+                     .order(ByteOrder.nativeOrder())
+@@ -473,6 +492,14 @@
+ 
+             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+ 
++            renderedFrames++;
++            if (renderedFrames == 2) {
++                mainHandler.post(() -> getSharedPreferences("state", MODE_PRIVATE).edit()
++                        .putBoolean("mirror_ready", true)
++                        .remove("mirror_error")
++                        .apply());
++            }
++
+             GLES20.glDisableVertexAttribArray(aPosition);
+             GLES20.glDisableVertexAttribArray(aTexCoord);
+         }
+@@ -523,7 +550,7 @@
+                 "void main() {\n" +
+                 "  gl_Position = aPosition;\n" +
+                 "  vec4 tc = uTextureMatrix * vec4(aTexCoord, 0.0, 1.0);\n" +
+-                "  vTexCoord = tc.xy;\n" +
++                "  vTexCoord = vec2(1.0 - tc.x, tc.y);\n" +
+                 "}\n";
+ 
+         private static final String FRAGMENT_SHADER =
