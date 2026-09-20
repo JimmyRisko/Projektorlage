@@ -131,6 +131,13 @@ jobs:
         working-directory: src
         run: python ../patch/validate_v211.py .
 
+      - name: Apply v2.12 SurfaceView HDR output
+        run: python patch/apply_v212.py src
+
+      - name: Validate v2.12 SurfaceView output
+        working-directory: src
+        run: python ../patch/validate_v212.py .
+
       - name: Package patched source snapshot
         shell: bash
         run: zip -qr Projektorlage-patched-source.zip src
@@ -177,32 +184,32 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.11.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.12.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v2.11-debug-apk
-          path: Projektorlage-v2.11.apk
+          name: Projektorlage-v2.12-debug-apk
+          path: Projektorlage-v2.12.apk
           if-no-files-found: error
 
       - name: Commit verified APK snapshot
         shell: bash
         run: |
           mkdir -p build-artifacts
-          cp Projektorlage-v2.11.apk build-artifacts/Projektorlage-v2.11.apk
-          sha256sum Projektorlage-v2.11.apk > build-artifacts/Projektorlage-v2.11.sha256
+          cp Projektorlage-v2.12.apk build-artifacts/Projektorlage-v2.12.apk
+          sha256sum Projektorlage-v2.12.apk > build-artifacts/Projektorlage-v2.12.sha256
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build-artifacts/Projektorlage-v2.11.apk build-artifacts/Projektorlage-v2.11.sha256
-          git commit -m "Built v2.11 brightness passthrough APK [skip ci]" || true
+          git add build-artifacts/Projektorlage-v2.12.apk build-artifacts/Projektorlage-v2.12.sha256
+          git commit -m "Built v2.12 SurfaceView HDR APK [skip ci]" || true
           git push
 
       - name: Publish test release
-        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.11 brightness passthrough'
+        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.12 SurfaceView HDR fix'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v2.11-test >/dev/null 2>&1 || gh release create v2.11-test --prerelease --title "Projektorläge v2.11 ljusfix" --notes "Exakt fungerande v2.7-spegling och spegelvändning. Projektorläget slutar helt överstyra skärmens ljusstyrka så Samsung/Netflix får behålla sin egen videoljusstyrka/HBM."
-          gh release upload v2.11-test Projektorlage-v2.11.apk --clobber
+          gh release view v2.12-test >/dev/null 2>&1 || gh release create v2.12-test --prerelease --title "Projektorläge v2.12 HDR-fix" --notes "Behåller fungerande single-app capture, spegelvändning och brightness passthrough. Endast slutytan byts från TextureView till SurfaceView så HDR-video inte tvingas genom TextureViews HDR-till-SDR-väg."
+          gh release upload v2.12-test Projektorlage-v2.12.apk --clobber
