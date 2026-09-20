@@ -1,0 +1,134 @@
+--- a/app/src/main/java/se/projektorlage/app/MainActivity.java
++++ b/app/src/main/java/se/projektorlage/app/MainActivity.java
+@@ -4,6 +4,7 @@
+ import android.app.Activity;
+ import android.content.Intent;
+ import android.content.SharedPreferences;
++import android.content.pm.ActivityInfo;
+ import android.content.pm.PackageManager;
+ import android.graphics.Color;
+ import android.graphics.Typeface;
+@@ -116,7 +117,7 @@
+         root.addView(title, full(0, dp(8)));
+ 
+         TextView intro = text(
+-                "Starta projektorn med ett tryck. Tekniska inställningar finns bara under Avancerat.",
++                "Tryck Starta. Android ber dig välja Netflix i en säkerhetsruta; sedan sköter appen resten.",
+                 15, muted(), false);
+         intro.setGravity(Gravity.CENTER_HORIZONTAL);
+         root.addView(intro, full(0, dp(18)));
+@@ -155,7 +156,7 @@
+ 
+         panel.addView(sectionTitle("Projektor"), full(0, dp(8)));
+         panel.addView(text(
+-                "Tryck Starta. Appen spegelvänder skärmen, väljer rätt bildriktning, maxar ljuset, startar fjärren och öppnar Netflix automatiskt.",
++                "Tryck Starta. Välj Netflix i Android-rutan. Bildriktning, spegling, maxljus och fjärr ställs sedan in automatiskt.",
+                 14, muted(), false), full(0, dp(14)));
+ 
+         projectorStatus = text("", 17, Color.WHITE, true);
+@@ -369,6 +370,7 @@
+     }
+ 
+     private void showProjectorPanel() {
++        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
+         getSharedPreferences("ui", MODE_PRIVATE).edit().putString("role", "projector").apply();
+         roleChooser.setVisibility(View.GONE);
+         projectorPanel.setVisibility(View.VISIBLE);
+@@ -377,6 +379,7 @@
+     }
+ 
+     private void showRemotePanel() {
++        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+         getSharedPreferences("ui", MODE_PRIVATE).edit().putString("role", "remote").apply();
+         roleChooser.setVisibility(View.GONE);
+         projectorPanel.setVisibility(View.GONE);
+@@ -467,6 +470,7 @@
+     }
+ 
+     private void showRoleChooser() {
++        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+         getSharedPreferences("ui", MODE_PRIVATE).edit().remove("role").apply();
+         roleChooser.setVisibility(View.VISIBLE);
+         projectorPanel.setVisibility(View.GONE);
+@@ -479,8 +483,16 @@
+                 .putInt("light_boost_percent", 0)
+                 .putString("picture_profile", "PROJECTOR")
+                 .putBoolean("auto_launch_netflix", false)
++                .putString("startup_state", "WAITING_FOR_CAPTURE")
++                .putBoolean("rotation_verified", false)
++                .putBoolean("brightness_verified", false)
++                .putBoolean("mirror_ready", false)
++                .remove("mirror_error")
+                 .apply();
+ 
++        projectorStatus.setText("Förbereder projektorn…");
++        projectorStatus.setTextColor(Color.rgb(255, 205, 120));
++
+         startActivity(new Intent(this, MirrorPermissionActivity.class)
+                 .putExtra("auto_projector", true));
+     }
+@@ -572,26 +584,57 @@
+     private void refreshProjectorStatus() {
+         if (projectorStatus == null || pairInfo == null) return;
+         SharedPreferences prefs = getSharedPreferences("state", MODE_PRIVATE);
++
+         boolean enabled = prefs.getBoolean("enabled", false);
+         boolean serverOnline = prefs.getBoolean("server_online", false);
++        boolean rotationVerified = prefs.getBoolean("rotation_verified", false);
++        boolean brightnessVerified = prefs.getBoolean("brightness_verified", false);
++        boolean mirrorReady = prefs.getBoolean("mirror_ready", false);
++        String startupState = prefs.getString("startup_state", "IDLE");
++        String mirrorError = prefs.getString("mirror_error", "");
+         String ip = prefs.getString("server_ip", null);
+         String pin = prefs.getString("pair_pin", "------");
+-        String rotationMode = prefs.getString("rotation_mode", "REVERSE");
+ 
+-        if (enabled) {
+-            projectorStatus.setText("● Projektorläge PÅ – " + ("NORMAL".equals(rotationMode) ? "LANDSKAP ↻" : "LANDSKAP ↺"));
++        if ("READY".equals(startupState) && enabled && rotationVerified && brightnessVerified && mirrorReady) {
++            projectorStatus.setText("✓ Projektorn är klar");
+             projectorStatus.setTextColor(Color.rgb(123, 216, 143));
++        } else if (startupState != null && startupState.startsWith("ERR_")) {
++            String message;
++            switch (startupState) {
++                case "ERR_CAPTURE_CANCELLED":
++                    message = "Starten avbröts i Android-rutan";
++                    break;
++                case "ERR_BASE_SETUP":
++                    message = "Kunde inte ställa in bildriktning eller ljusstyrka";
++                    break;
++                case "ERR_MIRROR":
++                    message = "Speglingen startade inte";
++                    break;
++                default:
++                    message = "Projektorn kunde inte starta";
++                    break;
++            }
++            projectorStatus.setText("⚠ " + message);
++            projectorStatus.setTextColor(Color.rgb(255, 145, 125));
++        } else if (enabled || !"IDLE".equals(startupState)) {
++            projectorStatus.setText("Förbereder projektorn…");
++            projectorStatus.setTextColor(Color.rgb(255, 205, 120));
+         } else {
+-            projectorStatus.setText("○ Projektorläge AV");
++            projectorStatus.setText("Redo");
+             projectorStatus.setTextColor(muted());
+         }
+ 
++        String diagnostics = "Bildriktning " + (rotationVerified ? "✓" : "…")
++                + "   Ljus " + (brightnessVerified ? "✓" : "…")
++                + "   Spegling " + (mirrorReady ? "✓" : (mirrorError.isEmpty() ? "…" : "✕"));
++
+         if (enabled && serverOnline && ip != null) {
+-            pairInfo.setText("FJÄRRANSLUTNING\nIP: " + ip + "\nPort: " + RotationService.REMOTE_PORT + "\nPIN: " + pin);
++            pairInfo.setText(diagnostics + "\n\nFjärranslutning\nIP: " + ip
++                    + "\nPort: " + RotationService.REMOTE_PORT + "\nPIN: " + pin);
+         } else if (enabled) {
+-            pairInfo.setText("Fjärrservern startar… Se till att Wi‑Fi eller hotspot är aktivt.");
++            pairInfo.setText(diagnostics + "\n\nFjärrkontrollen startar automatiskt…");
+         } else {
+-            pairInfo.setText("Aktivera projektorläget för att få IP och PIN.");
++            pairInfo.setText(diagnostics);
+         }
+     }
+ 
