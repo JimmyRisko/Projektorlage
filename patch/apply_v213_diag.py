@@ -185,14 +185,8 @@ mirror.write_text(s)
 # Add a diagnostic report to the existing main screen without changing capture behavior.
 m = main.read_text()
 
-# Import clipboard/toast if absent.
-if "import android.content.ClipboardManager;" not in m:
-    m = m.replace(
-        "import android.content.Context;\n",
-        "import android.content.Context;\n"
-        "import android.content.ClipData;\n"
-        "import android.content.ClipboardManager;\n",
-        1)
+# Use fully-qualified clipboard classes below so this diagnostic patch
+# does not depend on the import layout of MainActivity.
 
 # Insert helper methods before onDestroy if present, otherwise before final class brace.
 insert_anchor = "    @Override\n    protected void onDestroy()"
@@ -215,10 +209,10 @@ diag_methods = r'''    private String buildDiagnosticReport() {
 
     private void copyDiagnosticReport() {
         String report = buildDiagnosticReport();
-        ClipboardManager cm =
-                (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        android.content.ClipboardManager cm =
+                (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
         if (cm != null) {
-            cm.setPrimaryClip(ClipData.newPlainText(
+            cm.setPrimaryClip(android.content.ClipData.newPlainText(
                     "Projektorläge diagnostik", report));
             android.widget.Toast.makeText(
                     this,
