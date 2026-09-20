@@ -91,6 +91,13 @@ jobs:
         working-directory: src
         run: python ../patch/validate_v24.py .
 
+      - name: Apply v2.5 public SurfaceView path
+        run: python patch/apply_v25.py src
+
+      - name: Validate v2.5 Samsung path
+        working-directory: src
+        run: python ../patch/validate_v25.py .
+
       - name: Package patched source snapshot
         shell: bash
         run: zip -qr Projektorlage-patched-source.zip src
@@ -137,20 +144,20 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.4.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.5.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v2.4-debug-apk
-          path: Projektorlage-v2.4.apk
+          name: Projektorlage-v2.5-debug-apk
+          path: Projektorlage-v2.5.apk
           if-no-files-found: error
 
       - name: Publish test release
-        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.4 validated architecture'
+        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v2.4-test >/dev/null 2>&1 || gh release create v2.4-test --prerelease --title "Projektorläge v2.4 test" --notes "Återgår till den helskärmsfångst som fungerade på användarens Samsung, men exkluderar spegelytan från MediaProjection med SurfaceFlinger setSkipScreenshot för att bryta återkopplingsloopen utan FLAG_SECURE/svart ruta."
-          gh release upload v2.4-test Projektorlage-v2.4.apk --clobber
+          gh release view v2.5-test >/dev/null 2>&1 || gh release create v2.5-test --prerelease --title "Projektorläge v2.5 test" --notes "Samsung-fix: använder GLSurfaceView/SurfaceView.getSurfaceControl() via publik Android-API för att identifiera exakt spegelyta innan setSkipScreenshot används. Ingen ViewRootImpl/BLAST-reflektion, ingen FLAG_SECURE, helskärmsfångst och Netflix startar först när speglingen verifierats."
+          gh release upload v2.5-test Projektorlage-v2.5.apk --clobber
