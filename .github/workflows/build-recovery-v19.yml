@@ -1,0 +1,105 @@
+name: Build Projektorlage Recovery 1.9
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'patch/apply_recovery_v19_identity.py'
+      - '.github/workflows/build-recovery-v19.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rebuild original source
+        shell: bash
+        run: |
+          cat payload/part1.b64 payload/part2.b64 payload/part3.b64 payload/part4.b64 payload/part5.b64 | base64 --decode > projektorlage-src.zip
+          mkdir src
+          unzip -q projektorlage-src.zip -d src
+
+      - name: Apply patches only through v1.9
+        shell: bash
+        run: |
+          python patch/apply_v03.py src
+          python patch/apply_v04.py src
+          python patch/apply_v05.py src
+          python patch/apply_v06.py src
+          python patch/apply_v07.py src
+          python patch/apply_v08.py src
+          python patch/apply_v09.py src
+          python patch/apply_v10.py src
+          python patch/apply_v11.py src
+          python patch/apply_v12.py src
+          python patch/apply_v13.py src
+          python patch/apply_v14.py src
+          python patch/apply_v15.py src
+          python patch/apply_v16.py src
+          python patch/apply_v17.py src
+          python patch/apply_v18.py src
+          python patch/apply_v19.py src
+          python patch/apply_recovery_v19_identity.py src
+
+      - name: Validate exact recovery architecture
+        shell: bash
+        run: |
+          grep -q 'se.projektorlage.recovery19' src/app/build.gradle
+          grep -q "versionName 'RECOVERY-1.9'" src/app/build.gradle
+          grep -q 'textureView.setScaleX(-1f)' src/app/src/main/java/se/projektorlage/app/MirrorOverlayService.java
+          grep -q 'lp.screenBrightness = 1.0f' src/app/src/main/java/se/projektorlage/app/MirrorOverlayService.java
+          ! grep -q 'RenderEffect' src/app/src/main/java/se/projektorlage/app/MirrorOverlayService.java
+          ! grep -q 'RuntimeShader' src/app/src/main/java/se/projektorlage/app/MirrorOverlayService.java
+          ! grep -q 'GLSurfaceView' src/app/src/main/java/se/projektorlage/app/MirrorOverlayService.java
+          grep -q 'light_boost_percent", 0' src/app/src/main/java/se/projektorlage/app/MirrorPermissionActivity.java
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android 35 platform
+        shell: bash
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Lint
+        working-directory: src
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        run: gradle :app:lintDebug --stacktrace
+
+      - name: Build APK
+        working-directory: src
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Publish verified artifact to repo
+        shell: bash
+        run: |
+          mkdir -p build-artifacts
+          cp src/app/build/outputs/apk/debug/app-debug.apk build-artifacts/Projektorlage-Recovery-1.9.apk
+          sha256sum build-artifacts/Projektorlage-Recovery-1.9.apk > build-artifacts/Projektorlage-Recovery-1.9.sha256
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-artifacts/Projektorlage-Recovery-1.9.apk build-artifacts/Projektorlage-Recovery-1.9.sha256
+          git commit -m "Built clean Recovery 1.9 APK [skip ci]" || true
+          git push
