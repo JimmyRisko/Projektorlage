@@ -131,12 +131,12 @@ jobs:
         working-directory: src
         run: python ../patch/validate_v211.py .
 
-      - name: Apply v2.12 SurfaceView HDR output
-        run: python patch/apply_v212.py src
+      - name: Apply v2.13 diagnostic instrumentation
+        run: python patch/apply_v213_diag.py src
 
-      - name: Validate v2.12 SurfaceView output
+      - name: Validate v2.13 diagnostics
         working-directory: src
-        run: python ../patch/validate_v212.py .
+        run: python ../patch/validate_v213_diag.py .
 
       - name: Package patched source snapshot
         shell: bash
@@ -184,32 +184,32 @@ jobs:
 
       - name: Prepare named APK
         shell: bash
-        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.12.apk
+        run: cp src/app/build/outputs/apk/debug/app-debug.apk Projektorlage-v2.13-diag.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Projektorlage-v2.12-debug-apk
-          path: Projektorlage-v2.12.apk
+          name: Projektorlage-v2.13-diag-debug-apk
+          path: Projektorlage-v2.13-diag.apk
           if-no-files-found: error
 
       - name: Commit verified APK snapshot
         shell: bash
         run: |
           mkdir -p build-artifacts
-          cp Projektorlage-v2.12.apk build-artifacts/Projektorlage-v2.12.apk
-          sha256sum Projektorlage-v2.12.apk > build-artifacts/Projektorlage-v2.12.sha256
+          cp Projektorlage-v2.13-diag.apk build-artifacts/Projektorlage-v2.13-diag.apk
+          sha256sum Projektorlage-v2.13-diag.apk > build-artifacts/Projektorlage-v2.13-diag.sha256
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build-artifacts/Projektorlage-v2.12.apk build-artifacts/Projektorlage-v2.12.sha256
-          git commit -m "Built v2.12 SurfaceView HDR APK [skip ci]" || true
+          git add build-artifacts/Projektorlage-v2.13-diag.apk build-artifacts/Projektorlage-v2.13-diag.sha256
+          git commit -m "Built v2.13 diagnostic APK [skip ci]" || true
           git push
 
       - name: Publish test release
-        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.12 SurfaceView HDR fix'
+        if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v2.13 diagnostic build'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view v2.12-test >/dev/null 2>&1 || gh release create v2.12-test --prerelease --title "Projektorläge v2.12 HDR-fix" --notes "Behåller fungerande single-app capture, spegelvändning och brightness passthrough. Endast slutytan byts från TextureView till SurfaceView så HDR-video inte tvingas genom TextureViews HDR-till-SDR-väg."
-          gh release upload v2.12-test Projektorlage-v2.12.apk --clobber
+          gh release view v2.13-diag >/dev/null 2>&1 || gh release create v2.13-diag --prerelease --title "Projektorläge v2.13 diagnostik" --notes "Exakt v2.11-spegelkedja med diagnostiklogg för MediaProjection callbacks, capture resize/visibility och display/brightness snapshots. Ingen bildfix eller renderingsändring."
+          gh release upload v2.13-diag Projektorlage-v2.13-diag.apk --clobber
