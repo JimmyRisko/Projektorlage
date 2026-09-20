@@ -18,6 +18,8 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.display.DisplayManager;
+import android.media.Image;
+import android.media.ImageReader;
 import android.hardware.display.VirtualDisplay;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
@@ -42,6 +44,8 @@ import java.nio.FloatBuffer;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
+import org.lsposed.hiddenapibypass.HiddenApiBypass;
+
 public class MirrorOverlayService extends Service {
     public static final String ACTION_START = "se.projektorlage.app.MIRROR_START";
     public static final String ACTION_STOP = "se.projektorlage.app.MIRROR_STOP";
@@ -64,6 +68,8 @@ public class MirrorOverlayService extends Service {
     private VirtualDisplay virtualDisplay;
     private Surface captureSurface;
     private SurfaceTexture sourceTexture;
+    private ImageReader verificationReader;
+    private boolean verificationFinished;
 
     private boolean intentionalStop;
     private boolean skipScreenshotInstalled;
@@ -182,6 +188,7 @@ public class MirrorOverlayService extends Service {
             public void surfaceCreated(SurfaceHolder holder) {
                 glOutputSurfaceReady = true;
                 skipAttempts = 0;
+                if (glView != null) glView.requestRender();
                 attemptSkipScreenshot();
             }
 
@@ -236,7 +243,7 @@ public class MirrorOverlayService extends Service {
         if (installSkipScreenshotOnGlSurface()) {
             skipScreenshotInstalled = true;
             getSharedPreferences("state", MODE_PRIVATE).edit()
-                    .putBoolean("overlay_excluded", true)
+                    .putBoolean("overlay_excluded", false)
                     .remove("mirror_error_code")
                     .apply();
             maybeStartCapture();
@@ -272,39 +279,18 @@ public class MirrorOverlayService extends Service {
             if (sc == null || !sc.isValid()) return false;
 
             SurfaceControl.Transaction transaction = new SurfaceControl.Transaction();
-            Method method = null;
-
             try {
-                method = transaction.getClass().getMethod(
+                Method method = HiddenApiBypass.getDeclaredMethod(
+                        SurfaceControl.Transaction.class,
                         "setSkipScreenshot",
                         SurfaceControl.class,
                         boolean.class);
-            } catch (Throwable ignored) {
+                method.invoke(transaction, sc, true);
+                transaction.apply();
+                return true;
+            } finally {
+                try { transaction.close(); } catch (Throwable ignored) {}
             }
-
-            if (method == null) {
-                for (Method candidate : transaction.getClass().getDeclaredMethods()) {
-                    if ("setSkipScreenshot".equals(candidate.getName())
-                            && candidate.getParameterTypes().length == 2) {
-                        try {
-                            candidate.setAccessible(true);
-                            method = candidate;
-                            break;
-                        } catch (Throwable ignored) {
-                        }
-                    }
-                }
-            }
-
-            if (method == null) {
-                transaction.close();
-                return false;
-            }
-
-            method.invoke(transaction, sc, true);
-            transaction.apply();
-            transaction.close();
-            return true;
         } catch (Throwable ignored) {
             return false;
         }
@@ -321,34 +307,145 @@ public class MirrorOverlayService extends Service {
         }
 
         captureStarted = true;
-        startVirtualDisplay(sourceTexture);
+        verifyOverlayExclusion();
     }
 
-    private void startVirtualDisplay(SurfaceTexture texture) {
-        releaseVirtualDisplay();
+    /**
+     * A successful reflection call is not enough on OEM builds. We verify the
+     * real compositor result with one MediaProjection frame.
+     *
+     * The GLSurfaceView is solid magenta while verificationMode=true. If that
+     * magenta surface appears in MediaProjection, SKIP_SCREENSHOT did not
+     * actually take effect. Android 14+ allows one VirtualDisplay per token,
+     * so this same VirtualDisplay is retargeted to the source SurfaceTexture.
+     */
+    private void verifyOverlayExclusion() {
+        if (projection == null || sourceTexture == null || verificationFinished) return;
 
         int width = Math.max(1, getResources().getDisplayMetrics().widthPixels);
         int height = Math.max(1, getResources().getDisplayMetrics().heightPixels);
         int density = Math.max(1, getResources().getDisplayMetrics().densityDpi);
 
         try {
-            texture.setDefaultBufferSize(width, height);
-            captureSurface = new Surface(texture);
+            verificationReader = ImageReader.newInstance(
+                    width, height, PixelFormat.RGBA_8888, 2);
+
+            verificationReader.setOnImageAvailableListener(reader -> {
+                Image image = null;
+                try {
+                    image = reader.acquireLatestImage();
+                    if (image == null || verificationFinished) return;
+
+                    if (isMostlyMagenta(image)) {
+                        verificationFinished = true;
+                        getSharedPreferences("state", MODE_PRIVATE).edit()
+                                .putString("mirror_error_code", "OVERLAY_STILL_CAPTURED")
+                                .apply();
+                        setMirrorError("Android fångar fortfarande spegelytan");
+                        mainHandler.post(this::stopSelf);
+                        return;
+                    }
+
+                    verificationFinished = true;
+                    mainHandler.post(() -> activateMirrorOutput(width, height));
+                } catch (Throwable t) {
+                    verificationFinished = true;
+                    setMirrorError("kunde inte verifiera overlay-undantaget");
+                    mainHandler.post(this::stopSelf);
+                } finally {
+                    if (image != null) {
+                        try { image.close(); } catch (Throwable ignored) {}
+                    }
+                }
+            }, mainHandler);
 
             virtualDisplay = projection.createVirtualDisplay(
-                    "ProjektorlageMirror",
+                    "ProjektorlageVerify",
                     width,
                     height,
                     density,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    captureSurface,
+                    verificationReader.getSurface(),
                     null,
                     mainHandler);
         } catch (Throwable t) {
             captureStarted = false;
-            setMirrorError("kunde inte skapa spegelströmmen");
+            setMirrorError("kunde inte verifiera overlay-undantaget");
             stopSelf();
         }
+    }
+
+    private void activateMirrorOutput(int width, int height) {
+        try {
+            if (renderer != null) renderer.setVerificationMode(false);
+            if (glView != null) glView.requestRender();
+
+            sourceTexture.setDefaultBufferSize(width, height);
+            Surface output = new Surface(sourceTexture);
+
+            if (virtualDisplay == null) {
+                setMirrorError("verifieringsdisplay saknas");
+                stopSelf();
+                return;
+            }
+
+            virtualDisplay.setSurface(output);
+
+            if (captureSurface != null) {
+                try { captureSurface.release(); } catch (Throwable ignored) {}
+            }
+            captureSurface = output;
+
+            if (verificationReader != null) {
+                try { verificationReader.close(); } catch (Throwable ignored) {}
+                verificationReader = null;
+            }
+
+            getSharedPreferences("state", MODE_PRIVATE).edit()
+                    .putBoolean("overlay_excluded", true)
+                    .remove("mirror_error")
+                    .remove("mirror_error_code")
+                    .apply();
+        } catch (Throwable t) {
+            setMirrorError("kunde inte växla till spegelbilden");
+            stopSelf();
+        }
+    }
+
+    private boolean isMostlyMagenta(Image image) {
+        Image.Plane[] planes = image.getPlanes();
+        if (planes == null || planes.length == 0) return true;
+
+        Image.Plane plane = planes[0];
+        ByteBuffer buffer = plane.getBuffer();
+        int pixelStride = plane.getPixelStride();
+        int rowStride = plane.getRowStride();
+        if (buffer == null || pixelStride < 4 || rowStride <= 0) return true;
+
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int[][] points = new int[][] {
+                {width / 2, height / 2},
+                {width / 4, height / 4},
+                {3 * width / 4, height / 4},
+                {width / 4, 3 * height / 4},
+                {3 * width / 4, 3 * height / 4}
+        };
+
+        int magenta = 0;
+        for (int[] point : points) {
+            int x = Math.max(0, Math.min(width - 1, point[0]));
+            int y = Math.max(0, Math.min(height - 1, point[1]));
+            int offset = y * rowStride + x * pixelStride;
+            if (offset < 0 || offset + 2 >= buffer.limit()) continue;
+
+            int r = buffer.get(offset) & 0xff;
+            int g = buffer.get(offset + 1) & 0xff;
+            int b = buffer.get(offset + 2) & 0xff;
+            if (r > 210 && g < 80 && b > 210) magenta++;
+        }
+
+        return magenta >= 3;
     }
 
     private void setMirrorError(String message) {
@@ -416,6 +513,13 @@ public class MirrorOverlayService extends Service {
         sourceTextureReady = false;
         skipScreenshotInstalled = false;
         captureStarted = false;
+        verificationFinished = false;
+
+        if (verificationReader != null) {
+            try { verificationReader.close(); } catch (Throwable ignored) {}
+            verificationReader = null;
+        }
+
         skipAttempts = 0;
     }
 
@@ -462,6 +566,7 @@ public class MirrorOverlayService extends Service {
         private SurfaceTexture surfaceTexture;
         private ReadyListener readyListener;
         private int renderedFrames;
+        private volatile boolean verificationMode = true;
 
         private final float[] vertices = {
                 -1f, -1f,
@@ -493,6 +598,10 @@ public class MirrorOverlayService extends Service {
 
         void setReadyListener(ReadyListener listener) {
             readyListener = listener;
+        }
+
+        void setVerificationMode(boolean enabled) {
+            verificationMode = enabled;
         }
 
         @Override
@@ -545,6 +654,12 @@ public class MirrorOverlayService extends Service {
 
         @Override
         public void onDrawFrame(GL10 gl) {
+            if (verificationMode) {
+                GLES20.glClearColor(1f, 0f, 1f, 1f);
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+                return;
+            }
+
             if (surfaceTexture == null) return;
 
             try {
@@ -654,6 +769,14 @@ public class MirrorOverlayService extends Service {
 ''')
 
 b = build.read_text()
+if "org.lsposed.hiddenapibypass:hiddenapibypass:6.1" not in b:
+    if "dependencies {" in b:
+        b = b.replace(
+            "dependencies {",
+            "dependencies {\n    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'",
+            1)
+    else:
+        b += "\n\ndependencies {\n    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'\n}\n"
 b = b.replace("versionCode 24", "versionCode 25", 1)
 b = b.replace("versionName '2.4.0'", "versionName '2.5.0'", 1)
 build.write_text(b)
